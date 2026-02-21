@@ -1,0 +1,17 @@
+[package]
+name = "app_commands"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+adapters = { path = "../adapters" }
+core_domain = { path = "../core_domain" }
+core_focus = { path = "../core_focus" }
+core_jobs = { path = "../core_jobs" }
+core_metrics = { path = "../core_metrics" }
+core_planning = { path = "../core_planning" }
+core_skills = { path = "../core_skills" }
+core_storage = { path = "../core_storage" }
+core_vault = { path = "../core_vault" }

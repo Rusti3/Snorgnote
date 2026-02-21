@@ -1,0 +1,29 @@
+[workspace]
+members = [
+  "crates/core_domain",
+  "crates/core_storage",
+  "crates/core_vault",
+  "crates/core_jobs",
+  "crates/core_skills",
+  "crates/core_llm",
+  "crates/core_planning",
+  "crates/core_focus",
+  "crates/core_metrics",
+  "crates/adapters",
+  "crates/app_commands",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+authors = ["Snorgnote Contributors"]
+repository = "https://github.com/snorgnote/snorgnote"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+unwrap_used = "deny"

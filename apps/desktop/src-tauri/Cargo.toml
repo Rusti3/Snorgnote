@@ -14,3 +14,5 @@ app_commands = { path = "../../../crates/app_commands" }
 
 [features]
 default = []
+
+[workspace]

@@ -43,3 +43,10 @@ cargo test --workspace
 - Implemented adapters module: capture trait, manual adapter, and integration stubs for Telegram/Email/Browser.
 - Implemented app command layer: vault, inbox, jobs, skills, review flow, pomodoro, dashboard APIs.
 - Added unit tests across all crates; workspace passes `cargo clippy -D warnings` and `cargo test --workspace`.
+
+### v0.1.0-alpha.3
+- Installed desktop JavaScript dependencies and added Tauri CLI integration for local dev startup.
+- Fixed Tauri workspace isolation by adding `[workspace]` to `apps/desktop/src-tauri/Cargo.toml`.
+- Added required Windows icon asset (`apps/desktop/src-tauri/icons/icon.ico`) to satisfy `tauri-build`.
+- Updated `tauri.conf.json` bundle mode for dev startup compatibility.
+- Verified desktop run path: `npm run tauri:dev` now builds and starts `snorgnote-desktop.exe`.

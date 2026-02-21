@@ -8,3 +8,6 @@ Thumbs.db
 /apps/desktop/src-tauri/target
 /apps/desktop/src-tauri/gen
 /tmp
+AGENTS.md
+.gitignore
+roadmap.md

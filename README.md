@@ -50,3 +50,8 @@ cargo test --workspace
 - Added required Windows icon asset (`apps/desktop/src-tauri/icons/icon.ico`) to satisfy `tauri-build`.
 - Updated `tauri.conf.json` bundle mode for dev startup compatibility.
 - Verified desktop run path: `npm run tauri:dev` now builds and starts `snorgnote-desktop.exe`.
+
+### v0.1.0-alpha.4
+- Added project-level implementation roadmap in `roadmap.md`.
+- Recorded phased plan from current alpha state to stable `v1.0.0`.
+- Documented release sequence, quality gates, API/contracts to freeze, risks, and definition of done.

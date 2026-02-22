@@ -89,8 +89,8 @@ export default function App() {
             <h2 className="font-display text-2xl font-semibold">{title}</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
               {t(
-                'v0.1.6: корзина заметок и входящих, восстановление из UI и более быстрый инкрементальный индекс vault.',
-                'v0.1.6: notes/inbox trash with restore and faster incremental vault indexing.',
+                'v0.1.7: удаление навсегда в корзинах, windowed-рендеринг списков и дебаунс индексации vault.',
+                'v0.1.7: permanent delete in trash, windowed list rendering, and debounced vault indexing.',
               )}
             </p>
           </Card>

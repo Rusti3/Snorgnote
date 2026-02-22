@@ -1,6 +1,7 @@
-import { RotateCcw, Trash2 } from 'lucide-react'
+import { RotateCcw, Trash, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { VirtualList } from '../components/virtual-list'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
@@ -139,6 +140,52 @@ export function InboxPanel() {
     }
   }
 
+  async function onHardDelete(id: string) {
+    const confirmed = window.confirm(
+      t(
+        'Удалить элемент из корзины навсегда?',
+        'Permanently delete this item from trash?',
+      ),
+    )
+    if (!confirmed) return
+
+    setState('loading')
+    setError(null)
+    try {
+      await api.inboxDeleteItemPermanently(id)
+      await loadInbox()
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('Не удалось удалить элемент навсегда', 'Failed to permanently delete item'),
+      )
+      setState('error')
+    }
+  }
+
+  async function onEmptyTrash() {
+    if (trashedItems.length === 0) return
+    const confirmed = window.confirm(
+      t('Очистить корзину входящих навсегда?', 'Permanently clear inbox trash?'),
+    )
+    if (!confirmed) return
+
+    setState('loading')
+    setError(null)
+    try {
+      await api.inboxEmptyTrash()
+      await loadInbox()
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('Не удалось очистить корзину', 'Failed to clear trash'),
+      )
+      setState('error')
+    }
+  }
+
   return (
     <div className="space-y-4">
       <Card>
@@ -196,19 +243,22 @@ export function InboxPanel() {
         <h4 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
           {t('Элементы входящих', 'Inbox Items')}
         </h4>
-        <div className="space-y-2">
-          {items.length === 0 ? (
+        <VirtualList
+          items={items}
+          itemHeight={174}
+          maxHeightClassName="max-h-[46vh]"
+          getKey={(item) => item.id}
+          emptyState={(
             <p className="text-sm text-[var(--muted-foreground)]">
               {t('Входящие пусты.', 'Inbox is empty.')}
             </p>
-          ) : (
-            items.map((item) => (
-              <div
-                key={item.id}
-                className="rounded-md border border-[var(--border)] bg-[var(--muted)]/50 p-3"
-              >
+          )}
+          renderItem={(item) => {
+            const previewTags = item.tags.slice(0, 4)
+            return (
+              <div className="h-[164px] rounded-md border border-[var(--border)] bg-[var(--muted)]/50 p-3">
                 <div className="mb-1 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
                     <Badge>
                       {locale === 'ru' ? (sourceLabels[item.source] ?? item.source) : item.source}
                     </Badge>
@@ -222,67 +272,80 @@ export function InboxPanel() {
                     {new Date(item.created_at).toLocaleString()}
                   </span>
                 </div>
-                <p className="text-sm">{item.content_text}</p>
-                {item.tags.length > 0 ? (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {item.tags.map((tag) => (
+                <p className="mb-2 text-sm [display:-webkit-box] overflow-hidden [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+                  {item.content_text}
+                </p>
+                {previewTags.length > 0 ? (
+                  <div className="mb-2 flex flex-wrap gap-1">
+                    {previewTags.map((tag) => (
                       <Badge key={`${item.id}-${tag}`}>{tag}</Badge>
                     ))}
                   </div>
                 ) : null}
-                <div className="mt-3">
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    onClick={() => void onTrash(item.id)}
-                    disabled={state === 'loading'}
-                  >
-                    <Trash2 size={14} />
-                    {t('Удалить', 'Delete')}
-                  </Button>
-                </div>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  onClick={() => void onTrash(item.id)}
+                  disabled={state === 'loading'}
+                >
+                  <Trash2 size={14} />
+                  {t('Удалить', 'Delete')}
+                </Button>
               </div>
-            ))
-          )}
-        </div>
+            )
+          }}
+        />
       </Card>
 
       <Card>
         <div className="mb-2 flex items-center justify-between">
-          <h4 className="text-sm font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-            {t('Корзина входящих', 'Inbox Trash')}
-          </h4>
-          <Badge>{trashedItems.length}</Badge>
+          <div className="flex items-center gap-2">
+            <h4 className="text-sm font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+              {t('Корзина входящих', 'Inbox Trash')}
+            </h4>
+            <Badge>{trashedItems.length}</Badge>
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={trashedItems.length === 0}
+            onClick={() => void onEmptyTrash()}
+          >
+            {t('Очистить', 'Empty')}
+          </Button>
         </div>
-        <div className="space-y-2">
-          {trashedItems.length === 0 ? (
+        <VirtualList
+          items={trashedItems}
+          itemHeight={184}
+          maxHeightClassName="max-h-[42vh]"
+          getKey={(item) => item.id}
+          emptyState={(
             <p className="text-sm text-[var(--muted-foreground)]">
               {t('Корзина пуста.', 'Trash is empty.')}
             </p>
-          ) : (
-            trashedItems.map((item) => (
-              <div
-                key={item.id}
-                className="rounded-md border border-[var(--border)] bg-[var(--muted)]/30 p-3"
-              >
-                <div className="mb-1 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <Badge>
-                      {locale === 'ru' ? (sourceLabels[item.source] ?? item.source) : item.source}
-                    </Badge>
-                    <Badge>
-                      {t('Было', 'Was')}: {locale === 'ru'
-                        ? (statusLabels[item.previous_status] ?? item.previous_status)
-                        : item.previous_status}
-                    </Badge>
-                  </div>
-                  <span className="text-xs text-[var(--muted-foreground)]">
-                    {new Date(item.deleted_at).toLocaleString()}
-                  </span>
+          )}
+          renderItem={(item) => (
+            <div className="h-[174px] rounded-md border border-[var(--border)] bg-[var(--muted)]/30 p-3">
+              <div className="mb-1 flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Badge>
+                    {locale === 'ru' ? (sourceLabels[item.source] ?? item.source) : item.source}
+                  </Badge>
+                  <Badge>
+                    {t('Было', 'Was')}: {locale === 'ru'
+                      ? (statusLabels[item.previous_status] ?? item.previous_status)
+                      : item.previous_status}
+                  </Badge>
                 </div>
-                <p className="text-sm">{item.content_text}</p>
+                <span className="text-xs text-[var(--muted-foreground)]">
+                  {new Date(item.deleted_at).toLocaleString()}
+                </span>
+              </div>
+              <p className="mb-2 text-sm [display:-webkit-box] overflow-hidden [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
+                {item.content_text}
+              </p>
+              <div className="grid grid-cols-2 gap-2">
                 <Button
-                  className="mt-3"
                   size="sm"
                   variant="outline"
                   onClick={() => void onRestore(item.id)}
@@ -291,10 +354,19 @@ export function InboxPanel() {
                   <RotateCcw size={14} />
                   {t('Восстановить', 'Restore')}
                 </Button>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  onClick={() => void onHardDelete(item.id)}
+                  disabled={state === 'loading'}
+                >
+                  <Trash size={14} />
+                  {t('Навсегда', 'Delete')}
+                </Button>
               </div>
-            ))
+            </div>
           )}
-        </div>
+        />
       </Card>
     </div>
   )

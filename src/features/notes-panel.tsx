@@ -1,6 +1,7 @@
-import { RotateCcw, Trash2 } from 'lucide-react'
+import { RotateCcw, Trash, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { VirtualList } from '../components/virtual-list'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
@@ -127,6 +128,51 @@ export function NotesPanel() {
     }
   }
 
+  async function onHardDelete(trashId: string) {
+    const confirmed = window.confirm(
+      t(
+        'Удалить заметку из корзины навсегда?',
+        'Permanently delete this note from trash?',
+      ),
+    )
+    if (!confirmed) return
+
+    try {
+      await api.vaultDeleteNotePermanently(trashId)
+      setStatus(t('Заметка удалена навсегда', 'Note deleted permanently'))
+      await loadData()
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('Не удалось удалить заметку навсегда', 'Failed to permanently delete note'),
+      )
+    }
+  }
+
+  async function onEmptyTrash() {
+    if (trashedNotes.length === 0) return
+    const confirmed = window.confirm(
+      t(
+        'Очистить корзину заметок навсегда?',
+        'Permanently clear notes trash?',
+      ),
+    )
+    if (!confirmed) return
+
+    try {
+      const deleted = await api.vaultEmptyTrash()
+      setStatus(`${t('Удалено из корзины', 'Deleted from trash')}: ${deleted}`)
+      await loadData()
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('Не удалось очистить корзину', 'Failed to clear trash'),
+      )
+    }
+  }
+
   return (
     <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
       <Card className="space-y-3">
@@ -152,10 +198,18 @@ export function NotesPanel() {
           </Button>
         </div>
 
-        <div className="max-h-[40vh] space-y-1 overflow-auto pr-1">
-          {notes.map((note) => (
+        <VirtualList
+          items={notes}
+          itemHeight={64}
+          maxHeightClassName="max-h-[42vh]"
+          getKey={(note) => note.id}
+          emptyState={(
+            <p className="text-xs text-[var(--muted-foreground)]">
+              {t('Нет заметок', 'No notes yet')}
+            </p>
+          )}
+          renderItem={(note) => (
             <button
-              key={note.id}
               className={`w-full rounded-md border px-3 py-2 text-left text-sm transition-colors ${
                 note.path === selectedPath
                   ? 'border-[var(--primary)] bg-[var(--primary)]/10'
@@ -163,33 +217,48 @@ export function NotesPanel() {
               }`}
               onClick={() => setSelectedPath(note.path)}
             >
-              <div className="font-medium">{note.title}</div>
-              <div className="text-xs text-[var(--muted-foreground)]">{note.path}</div>
+              <div className="truncate font-medium">{note.title}</div>
+              <div className="truncate text-xs text-[var(--muted-foreground)]">{note.path}</div>
             </button>
-          ))}
-        </div>
+          )}
+        />
 
         <div className="rounded-md border border-[var(--border)] p-2">
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-              {t('Корзина заметок', 'Notes Trash')}
-            </p>
-            <Badge>{trashedNotes.length}</Badge>
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+                {t('Корзина заметок', 'Notes Trash')}
+              </p>
+              <Badge>{trashedNotes.length}</Badge>
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={trashedNotes.length === 0}
+              onClick={() => void onEmptyTrash()}
+            >
+              {t('Очистить', 'Empty')}
+            </Button>
           </div>
-          <div className="max-h-[18vh] space-y-2 overflow-auto pr-1">
-            {trashedNotes.length === 0 ? (
+          <VirtualList
+            items={trashedNotes}
+            itemHeight={128}
+            maxHeightClassName="max-h-[30vh]"
+            getKey={(note) => note.id}
+            emptyState={(
               <p className="text-xs text-[var(--muted-foreground)]">
                 {t('Корзина пуста', 'Trash is empty')}
               </p>
-            ) : (
-              trashedNotes.map((note) => (
-                <div key={note.id} className="rounded-md border border-[var(--border)] p-2">
-                  <p className="truncate text-sm font-medium">{note.title}</p>
-                  <p className="truncate text-xs text-[var(--muted-foreground)]">
-                    {note.original_path}
-                  </p>
+            )}
+            renderItem={(note) => (
+              <div className="rounded-md border border-[var(--border)] p-2">
+                <p className="truncate text-sm font-medium">{note.title}</p>
+                <p className="truncate text-xs text-[var(--muted-foreground)]">
+                  {note.original_path}
+                </p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
                   <Button
-                    className="mt-2 w-full"
+                    className="w-full"
                     size="sm"
                     variant="outline"
                     onClick={() => void onRestore(note.id)}
@@ -197,10 +266,19 @@ export function NotesPanel() {
                     <RotateCcw size={14} />
                     {t('Восстановить', 'Restore')}
                   </Button>
+                  <Button
+                    className="w-full"
+                    size="sm"
+                    variant="danger"
+                    onClick={() => void onHardDelete(note.id)}
+                  >
+                    <Trash size={14} />
+                    {t('Навсегда', 'Delete')}
+                  </Button>
                 </div>
-              ))
+              </div>
             )}
-          </div>
+          />
         </div>
       </Card>
 

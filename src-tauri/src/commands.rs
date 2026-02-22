@@ -55,6 +55,21 @@ pub fn vault_restore_note(
 }
 
 #[tauri::command]
+pub fn vault_delete_note_permanently(
+    state: State<'_, AppState>,
+    trash_id: String,
+) -> Result<(), String> {
+    state
+        .vault_delete_note_permanently(&trash_id)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn vault_empty_trash(state: State<'_, AppState>) -> Result<i64, String> {
+    state.vault_empty_trash().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn inbox_add_item(
     state: State<'_, AppState>,
     source: String,
@@ -107,6 +122,18 @@ pub fn inbox_restore_item(
     state
         .inbox_restore_item(&id)
         .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn inbox_delete_item_permanently(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    state
+        .inbox_delete_item_permanently(&id)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn inbox_empty_trash(state: State<'_, AppState>) -> Result<i64, String> {
+    state.inbox_empty_trash().map_err(|error| error.to_string())
 }
 
 #[tauri::command]

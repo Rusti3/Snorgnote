@@ -4,7 +4,7 @@ use std::{
     path::{Component, Path, PathBuf},
     sync::{atomic::AtomicBool, Arc, Mutex},
     thread::JoinHandle,
-    time::{Duration as StdDuration, UNIX_EPOCH},
+    time::{Duration as StdDuration, Instant, UNIX_EPOCH},
 };
 
 use anyhow::{anyhow, bail, Context, Result};
@@ -51,10 +51,12 @@ pub struct AppState {
     pub vault_root: PathBuf,
     pub db_path: PathBuf,
     pub telegram_runtime: Arc<Mutex<TelegramRuntime>>,
+    pub last_reindex_at: Arc<Mutex<Option<Instant>>>,
 }
 
 const TRASH_ROOT_DIR: &str = ".snorgnote_trash";
 const TRASH_NOTES_DIR: &str = ".snorgnote_trash/notes";
+const REINDEX_DEBOUNCE_WINDOW: StdDuration = StdDuration::from_millis(800);
 
 impl AppState {
     pub fn bootstrap(app: &tauri::AppHandle) -> Result<Self> {
@@ -71,6 +73,7 @@ impl AppState {
             vault_root: base_dir.join("vault"),
             db_path: base_dir.join("snorgnote.db"),
             telegram_runtime: Arc::new(Mutex::new(TelegramRuntime::default())),
+            last_reindex_at: Arc::new(Mutex::new(None)),
         };
         state.init()?;
         Ok(state)
@@ -83,6 +86,7 @@ impl AppState {
             vault_root: base_dir.join("vault"),
             db_path: base_dir.join("snorgnote.db"),
             telegram_runtime: Arc::new(Mutex::new(TelegramRuntime::default())),
+            last_reindex_at: Arc::new(Mutex::new(None)),
         };
         state.init()?;
         Ok(state)
@@ -102,7 +106,34 @@ impl AppState {
         let conn = self.conn()?;
         init_schema(&conn)?;
         self.seed_defaults(&conn)?;
-        self.reindex_vault(&conn)?;
+        self.reindex_vault_if_due(&conn, true)?;
+        Ok(())
+    }
+
+    fn reindex_vault_if_due(&self, conn: &Connection, force: bool) -> Result<()> {
+        let should_run = if force {
+            true
+        } else {
+            let guard = self
+                .last_reindex_at
+                .lock()
+                .map_err(|_| anyhow!("reindex state lock poisoned"))?;
+            match *guard {
+                Some(last) => last.elapsed() >= REINDEX_DEBOUNCE_WINDOW,
+                None => true,
+            }
+        };
+
+        if !should_run {
+            return Ok(());
+        }
+
+        self.reindex_vault(conn)?;
+        let mut guard = self
+            .last_reindex_at
+            .lock()
+            .map_err(|_| anyhow!("reindex state lock poisoned"))?;
+        *guard = Some(Instant::now());
         Ok(())
     }
 
@@ -262,7 +293,7 @@ impl AppState {
 
     pub fn vault_list_notes(&self) -> Result<Vec<NoteSummary>> {
         let conn = self.conn()?;
-        self.reindex_vault(&conn)?;
+        self.reindex_vault_if_due(&conn, false)?;
 
         let mut stmt = conn.prepare(
             "SELECT id, path, title, updated_at
@@ -356,7 +387,6 @@ impl AppState {
 
         let clean_path = rel_path.replace('\\', "/");
         let conn = self.conn()?;
-        self.reindex_vault(&conn)?;
 
         let note_meta = conn
             .query_row(
@@ -521,6 +551,56 @@ impl AppState {
             frontmatter,
             updated_at: now_rfc3339(),
         })
+    }
+
+    pub fn vault_delete_note_permanently(&self, trash_id: &str) -> Result<()> {
+        let conn = self.conn()?;
+        let row = conn
+            .query_row(
+                "SELECT original_path, trashed_path FROM notes_trash WHERE id = ?1",
+                params![trash_id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .optional()?
+            .ok_or_else(|| anyhow!("trash entry `{trash_id}` not found"))?;
+        let (original_path, trashed_path) = row;
+
+        let trashed_abs_path = self.resolve_markdown_path(&trashed_path)?;
+        if trashed_abs_path.exists() {
+            fs::remove_file(&trashed_abs_path).with_context(|| {
+                format!(
+                    "failed to permanently delete trashed note file `{}`",
+                    trashed_abs_path.display()
+                )
+            })?;
+        }
+
+        conn.execute("DELETE FROM notes_trash WHERE id = ?1", params![trash_id])?;
+        self.insert_event(
+            &conn,
+            "note.deleted_permanently",
+            "note",
+            None,
+            &json!({ "path": original_path }),
+        )?;
+        Ok(())
+    }
+
+    pub fn vault_empty_trash(&self) -> Result<i64> {
+        let trash_ids = {
+            let conn = self.conn()?;
+            let mut stmt = conn.prepare("SELECT id FROM notes_trash ORDER BY deleted_at ASC")?;
+            let rows = stmt
+                .query_map([], |row| row.get::<_, String>(0))?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            rows
+        };
+
+        for trash_id in &trash_ids {
+            self.vault_delete_note_permanently(trash_id)?;
+        }
+
+        Ok(trash_ids.len() as i64)
     }
 
     pub(crate) fn upsert_note_from_body(
@@ -823,6 +903,53 @@ impl AppState {
             .ok_or_else(|| anyhow!("inbox item `{inbox_id}` not found after restore"))?;
 
         Ok(item)
+    }
+
+    pub fn inbox_delete_item_permanently(&self, inbox_id: &str) -> Result<()> {
+        let conn = self.conn()?;
+        let exists_in_trash = conn
+            .query_row(
+                "SELECT 1 FROM inbox_trash WHERE inbox_item_id = ?1",
+                params![inbox_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()?
+            .is_some();
+        if !exists_in_trash {
+            bail!("inbox item `{inbox_id}` is not in trash");
+        }
+
+        let deleted = conn.execute("DELETE FROM inbox_items WHERE id = ?1", params![inbox_id])?;
+        if deleted == 0 {
+            bail!("inbox item `{inbox_id}` not found");
+        }
+
+        self.insert_event(
+            &conn,
+            "inbox.deleted_permanently",
+            "inbox_item",
+            Some(inbox_id),
+            &json!({}),
+        )?;
+        Ok(())
+    }
+
+    pub fn inbox_empty_trash(&self) -> Result<i64> {
+        let trashed_ids = {
+            let conn = self.conn()?;
+            let mut stmt =
+                conn.prepare("SELECT inbox_item_id FROM inbox_trash ORDER BY deleted_at ASC")?;
+            let rows = stmt
+                .query_map([], |row| row.get::<_, String>(0))?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            rows
+        };
+
+        for inbox_id in &trashed_ids {
+            self.inbox_delete_item_permanently(inbox_id)?;
+        }
+
+        Ok(trashed_ids.len() as i64)
     }
 
     pub fn inbox_process(&self, limit: u32) -> Result<JobRunReport> {
@@ -1170,6 +1297,140 @@ mod tests {
 
         let list_after_delete = state.vault_list_notes()?;
         assert!(!list_after_delete.iter().any(|note| note.path == path));
+
+        Ok(())
+    }
+
+    #[test]
+    fn vault_hard_delete_removes_trashed_file_and_entry() -> Result<()> {
+        let temp = tempdir()?;
+        let state = AppState::for_test(temp.path())?;
+
+        let path = "Notes/hard-delete.md";
+        let _ = state.vault_save_note(path, "# Hard delete\n\nbody")?;
+        state.vault_delete_note(path)?;
+
+        let conn = state.conn()?;
+        let (trash_id, trashed_path): (String, String) = conn.query_row(
+            "SELECT id, trashed_path FROM notes_trash LIMIT 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        drop(conn);
+
+        let trashed_abs_path = state.vault_root.join(&trashed_path);
+        assert!(trashed_abs_path.exists());
+
+        state.vault_delete_note_permanently(&trash_id)?;
+
+        assert!(!trashed_abs_path.exists());
+        let trash_after = state.vault_trash_list()?;
+        assert!(trash_after.is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn vault_empty_trash_removes_all_entries() -> Result<()> {
+        let temp = tempdir()?;
+        let state = AppState::for_test(temp.path())?;
+
+        let _ = state.vault_save_note("Notes/empty-a.md", "# A")?;
+        let _ = state.vault_save_note("Notes/empty-b.md", "# B")?;
+        state.vault_delete_note("Notes/empty-a.md")?;
+        state.vault_delete_note("Notes/empty-b.md")?;
+
+        let deleted = state.vault_empty_trash()?;
+        assert_eq!(deleted, 2);
+        assert!(state.vault_trash_list()?.is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn inbox_hard_delete_removes_item_completely() -> Result<()> {
+        let temp = tempdir()?;
+        let state = AppState::for_test(temp.path())?;
+
+        let item = state.inbox_add_item(
+            "quick_note".to_string(),
+            "trash me forever".to_string(),
+            vec![],
+            None,
+        )?;
+        state.inbox_trash_item(&item.id)?;
+        state.inbox_delete_item_permanently(&item.id)?;
+
+        assert!(state.inbox_trash_list()?.is_empty());
+        let conn = state.conn()?;
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(1) FROM inbox_items WHERE id = ?1",
+            rusqlite::params![item.id],
+            |row| row.get(0),
+        )?;
+        assert_eq!(count, 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn inbox_empty_trash_keeps_non_trashed_items() -> Result<()> {
+        let temp = tempdir()?;
+        let state = AppState::for_test(temp.path())?;
+
+        let trashed = state.inbox_add_item(
+            "quick_note".to_string(),
+            "to delete".to_string(),
+            vec![],
+            None,
+        )?;
+        let keep = state.inbox_add_item(
+            "quick_note".to_string(),
+            "keep me".to_string(),
+            vec![],
+            None,
+        )?;
+        state.inbox_trash_item(&trashed.id)?;
+
+        let deleted = state.inbox_empty_trash()?;
+        assert_eq!(deleted, 1);
+        assert!(state.inbox_trash_list()?.is_empty());
+
+        let visible = state.inbox_list(None)?;
+        assert!(visible.iter().any(|item| item.id == keep.id));
+        assert!(!visible.iter().any(|item| item.id == trashed.id));
+
+        Ok(())
+    }
+
+    #[test]
+    fn reindex_debounce_delays_external_refresh_until_interval() -> Result<()> {
+        let temp = tempdir()?;
+        let state = AppState::for_test(temp.path())?;
+
+        let path = "Notes/debounce.md";
+        let _ = state.vault_save_note(path, "# Before\n\nbody")?;
+        let _ = state.vault_list_notes()?;
+
+        let abs_path = state.resolve_markdown_path(path)?;
+        fs::write(&abs_path, "# After\n\nupdated externally")?;
+
+        let too_early = state.vault_list_notes()?;
+        let early_title = too_early
+            .iter()
+            .find(|note| note.path == path)
+            .map(|note| note.title.clone())
+            .unwrap_or_default();
+        assert_eq!(early_title, "Before");
+
+        thread::sleep(Duration::from_millis(900));
+        let after_wait = state.vault_list_notes()?;
+        let refreshed_title = after_wait
+            .iter()
+            .find(|note| note.path == path)
+            .map(|note| note.title.clone())
+            .unwrap_or_default();
+        assert_eq!(refreshed_title, "After");
 
         Ok(())
     }

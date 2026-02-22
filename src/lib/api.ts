@@ -215,6 +215,28 @@ export const api = {
     return restored
   },
 
+  async vaultDeleteNotePermanently(trashId: string): Promise<void> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('vault_delete_note_permanently', { trashId })
+    }
+
+    const idx = mockState.notesTrash.findIndex((entry) => entry.id === trashId)
+    if (idx < 0) {
+      throw new Error(`Элемент корзины не найден: ${trashId}`)
+    }
+    mockState.notesTrash.splice(idx, 1)
+  },
+
+  async vaultEmptyTrash(): Promise<number> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('vault_empty_trash')
+    }
+
+    const deleted = mockState.notesTrash.length
+    mockState.notesTrash = []
+    return deleted
+  },
+
   async inboxAddItem(
     source: string,
     contentText: string,
@@ -323,6 +345,31 @@ export const api = {
     item.status = meta.previous_status
     mockState.inboxTrash = mockState.inboxTrash.filter((entry) => entry.id !== id)
     return item
+  },
+
+  async inboxDeleteItemPermanently(id: string): Promise<void> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('inbox_delete_item_permanently', { id })
+    }
+
+    const meta = mockState.inboxTrash.find((entry) => entry.id === id)
+    if (!meta) {
+      throw new Error(`Элемент корзины не найден: ${id}`)
+    }
+    mockState.inboxTrash = mockState.inboxTrash.filter((entry) => entry.id !== id)
+    mockState.inbox = mockState.inbox.filter((item) => item.id !== id)
+  },
+
+  async inboxEmptyTrash(): Promise<number> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('inbox_empty_trash')
+    }
+
+    const ids = new Set(mockState.inboxTrash.map((entry) => entry.id))
+    const deleted = ids.size
+    mockState.inbox = mockState.inbox.filter((item) => !ids.has(item.id))
+    mockState.inboxTrash = []
+    return deleted
   },
 
   async skillsList(): Promise<SkillRecord[]> {

@@ -1,10 +1,11 @@
-﻿import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { api } from '../lib/api'
 import { useLocale } from '../lib/locale'
+import { useTheme } from '../lib/theme'
 import type {
   TelegramPollReport,
   TelegramStatus,
@@ -13,6 +14,7 @@ import type {
 
 export function SettingsPanel() {
   const { locale, setLocale, t } = useLocale()
+  const { themeMode, setThemeMode } = useTheme()
   const [botToken, setBotToken] = useState('')
   const [username, setUsername] = useState('')
   const [status, setStatus] = useState<TelegramStatus | null>(null)
@@ -131,6 +133,36 @@ export function SettingsPanel() {
 
   return (
     <div className="space-y-4">
+      <Card>
+        <h3 className="mb-2 text-lg font-semibold">{t('Тема оформления', 'Theme')}</h3>
+        <p className="text-sm text-[var(--muted-foreground)]">
+          {t(
+            'Режим применяется мгновенно и сохраняется локально.',
+            'Theme mode applies instantly and is stored locally.',
+          )}
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button
+            variant={themeMode === 'system' ? 'default' : 'outline'}
+            onClick={() => setThemeMode('system')}
+          >
+            {t('Системная', 'System')}
+          </Button>
+          <Button
+            variant={themeMode === 'light' ? 'default' : 'outline'}
+            onClick={() => setThemeMode('light')}
+          >
+            {t('Светлая', 'Light')}
+          </Button>
+          <Button
+            variant={themeMode === 'dark' ? 'default' : 'outline'}
+            onClick={() => setThemeMode('dark')}
+          >
+            {t('Тёмная', 'Dark')}
+          </Button>
+        </div>
+      </Card>
+
       <Card>
         <h3 className="mb-2 text-lg font-semibold">{t('Язык интерфейса', 'Interface language')}</h3>
         <p className="text-sm text-[var(--muted-foreground)]">

@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 
 import { Badge } from './components/ui/badge'
 import { Card } from './components/ui/card'
+import { WindowTitlebar } from './components/window-titlebar'
 import { FocusPanel } from './features/focus-panel'
 import { InboxPanel } from './features/inbox-panel'
 import { NotesPanel } from './features/notes-panel'
@@ -39,6 +40,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+      <WindowTitlebar />
       <div className="mx-auto grid max-w-[1600px] gap-4 p-4 lg:grid-cols-[260px_1fr]">
         <aside className="space-y-4">
           <Card className="overflow-hidden p-0">
@@ -89,8 +91,8 @@ export default function App() {
             <h2 className="font-display text-2xl font-semibold">{title}</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
               {t(
-                'v0.1.7: удаление навсегда в корзинах, windowed-рендеринг списков и дебаунс индексации vault.',
-                'v0.1.7: permanent delete in trash, windowed list rendering, and debounced vault indexing.',
+                'v0.1.8: кастомный заголовок окна и темы system/light/dark в настройках.',
+                'v0.1.8: custom window titlebar and system/light/dark theme settings.',
               )}
             </p>
           </Card>

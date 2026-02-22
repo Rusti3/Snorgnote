@@ -13,6 +13,8 @@ import type {
   SkillRecord,
   SkillRunResult,
   SkillValidation,
+  TrashedInboxItem,
+  TrashedNoteSummary,
   TelegramPollReport,
   TelegramStatus,
   TelegramVerificationCode,
@@ -27,7 +29,18 @@ const today = () => new Date().toISOString().slice(0, 10)
 
 const mockState = {
   notes: [] as NoteDocument[],
+  notesTrash: [] as Array<{
+    id: string
+    original_path: string
+    deleted_at: string
+    note: NoteDocument
+  }>,
   inbox: [] as InboxItemView[],
+  inboxTrash: [] as Array<{
+    id: string
+    deleted_at: string
+    previous_status: string
+  }>,
   skills: [
     { id: 'daily_planner', slug: 'daily_planner', version: 1, enabled: true },
     { id: 'spaced_review', slug: 'spaced_review', version: 1, enabled: true },
@@ -148,6 +161,60 @@ export const api = {
     return doc
   },
 
+  async vaultDeleteNote(path: string): Promise<void> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('vault_delete_note', { path })
+    }
+
+    const idx = mockState.notes.findIndex((note) => note.path === path)
+    if (idx < 0) {
+      throw new Error(`Заметка не найдена: ${path}`)
+    }
+    const [note] = mockState.notes.splice(idx, 1)
+    mockState.notesTrash.unshift({
+      id: crypto.randomUUID(),
+      original_path: path,
+      deleted_at: now(),
+      note,
+    })
+  },
+
+  async vaultTrashList(): Promise<TrashedNoteSummary[]> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('vault_trash_list')
+    }
+
+    return mockState.notesTrash.map((entry) => ({
+      id: entry.id,
+      title: entry.note.title,
+      original_path: entry.original_path,
+      deleted_at: entry.deleted_at,
+    }))
+  },
+
+  async vaultRestoreNote(trashId: string): Promise<NoteDocument> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('vault_restore_note', { trashId })
+    }
+
+    const idx = mockState.notesTrash.findIndex((entry) => entry.id === trashId)
+    if (idx < 0) {
+      throw new Error(`Элемент корзины не найден: ${trashId}`)
+    }
+    const [entry] = mockState.notesTrash.splice(idx, 1)
+    const existingPath = mockState.notes.some((note) => note.path === entry.original_path)
+    const restoredPath = existingPath
+      ? entry.original_path.replace(/\.md$/i, `-restored-${Date.now()}.md`)
+      : entry.original_path
+    const restored: NoteDocument = {
+      ...entry.note,
+      path: restoredPath,
+      updated_at: now(),
+    }
+    mockState.notes.push(restored)
+    return restored
+  },
+
   async inboxAddItem(
     source: string,
     contentText: string,
@@ -181,7 +248,7 @@ export const api = {
       return tauriInvoke('inbox_list', { status })
     }
 
-    if (!status) return mockState.inbox
+    if (!status) return mockState.inbox.filter((item) => item.status !== 'trashed')
     return mockState.inbox.filter((item) => item.status === status)
   },
 
@@ -198,6 +265,64 @@ export const api = {
       processed += 1
     }
     return { processed, succeeded: processed, failed: 0 }
+  },
+
+  async inboxTrashItem(id: string): Promise<void> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('inbox_trash_item', { id })
+    }
+
+    const item = mockState.inbox.find((candidate) => candidate.id === id)
+    if (!item) {
+      throw new Error(`Входящее не найдено: ${id}`)
+    }
+    if (item.status === 'trashed') {
+      return
+    }
+    mockState.inboxTrash = mockState.inboxTrash.filter((entry) => entry.id !== id)
+    mockState.inboxTrash.unshift({
+      id,
+      deleted_at: now(),
+      previous_status: item.status,
+    })
+    item.status = 'trashed'
+  },
+
+  async inboxTrashList(): Promise<TrashedInboxItem[]> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('inbox_trash_list')
+    }
+
+    return mockState.inboxTrash
+      .map((entry) => {
+        const item = mockState.inbox.find((candidate) => candidate.id === entry.id)
+        if (!item) return null
+        return {
+          id: item.id,
+          source: item.source,
+          content_text: item.content_text,
+          created_at: item.created_at,
+          deleted_at: entry.deleted_at,
+          tags: item.tags,
+          previous_status: entry.previous_status,
+        } satisfies TrashedInboxItem
+      })
+      .filter((item): item is TrashedInboxItem => Boolean(item))
+  },
+
+  async inboxRestoreItem(id: string): Promise<InboxItemView> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('inbox_restore_item', { id })
+    }
+
+    const meta = mockState.inboxTrash.find((entry) => entry.id === id)
+    const item = mockState.inbox.find((candidate) => candidate.id === id)
+    if (!meta || !item) {
+      throw new Error(`Элемент корзины не найден: ${id}`)
+    }
+    item.status = meta.previous_status
+    mockState.inboxTrash = mockState.inboxTrash.filter((entry) => entry.id !== id)
+    return item
   },
 
   async skillsList(): Promise<SkillRecord[]> {

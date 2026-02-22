@@ -1,3 +1,4 @@
+import { RotateCcw, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { Badge } from '../components/ui/badge'
@@ -5,7 +6,7 @@ import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { api } from '../lib/api'
 import { useLocale } from '../lib/locale'
-import type { InboxItemView } from '../types/api'
+import type { InboxItemView, TrashedInboxItem } from '../types/api'
 
 type LoadState = 'idle' | 'loading' | 'error'
 
@@ -19,6 +20,7 @@ const sourceLabels: Record<string, string> = {
 const statusLabels: Record<string, string> = {
   new: 'новый',
   processed: 'обработан',
+  queued: 'в очереди',
 }
 
 export function InboxPanel() {
@@ -27,6 +29,7 @@ export function InboxPanel() {
   const [content, setContent] = useState('')
   const [tags, setTags] = useState('')
   const [items, setItems] = useState<InboxItemView[]>([])
+  const [trashedItems, setTrashedItems] = useState<TrashedInboxItem[]>([])
   const [state, setState] = useState<LoadState>('idle')
   const [error, setError] = useState<string | null>(null)
 
@@ -39,11 +42,17 @@ export function InboxPanel() {
     setState('loading')
     setError(null)
     try {
-      const result = await api.inboxList()
-      setItems(result)
+      const [inboxItems, trashItems] = await Promise.all([
+        api.inboxList(),
+        api.inboxTrashList(),
+      ])
+      setItems(inboxItems)
+      setTrashedItems(trashItems)
       setState('idle')
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('Не удалось загрузить входящие', 'Failed to load inbox'))
+      setError(
+        err instanceof Error ? err.message : t('Не удалось загрузить входящие', 'Failed to load inbox'),
+      )
       setState('error')
     }
   }, [t])
@@ -69,7 +78,9 @@ export function InboxPanel() {
       await loadInbox()
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : t('Не удалось сохранить элемент во входящие', 'Failed to save inbox item'),
+        err instanceof Error
+          ? err.message
+          : t('Не удалось сохранить элемент во входящие', 'Failed to save inbox item'),
       )
       setState('error')
     }
@@ -82,7 +93,48 @@ export function InboxPanel() {
       await api.inboxProcess(20)
       await loadInbox()
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('Не удалось обработать входящие', 'Failed to process inbox'))
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('Не удалось обработать входящие', 'Failed to process inbox'),
+      )
+      setState('error')
+    }
+  }
+
+  async function onTrash(id: string) {
+    const confirmed = window.confirm(
+      t('Переместить элемент во входящих в корзину?', 'Move inbox item to trash?'),
+    )
+    if (!confirmed) return
+
+    setState('loading')
+    setError(null)
+    try {
+      await api.inboxTrashItem(id)
+      await loadInbox()
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('Не удалось удалить элемент входящих', 'Failed to delete inbox item'),
+      )
+      setState('error')
+    }
+  }
+
+  async function onRestore(id: string) {
+    setState('loading')
+    setError(null)
+    try {
+      await api.inboxRestoreItem(id)
+      await loadInbox()
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('Не удалось восстановить элемент', 'Failed to restore item'),
+      )
       setState('error')
     }
   }
@@ -146,7 +198,9 @@ export function InboxPanel() {
         </h4>
         <div className="space-y-2">
           {items.length === 0 ? (
-            <p className="text-sm text-[var(--muted-foreground)]">{t('Входящие пусты.', 'Inbox is empty.')}</p>
+            <p className="text-sm text-[var(--muted-foreground)]">
+              {t('Входящие пусты.', 'Inbox is empty.')}
+            </p>
           ) : (
             items.map((item) => (
               <div
@@ -176,6 +230,67 @@ export function InboxPanel() {
                     ))}
                   </div>
                 ) : null}
+                <div className="mt-3">
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={() => void onTrash(item.id)}
+                    disabled={state === 'loading'}
+                  >
+                    <Trash2 size={14} />
+                    {t('Удалить', 'Delete')}
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </Card>
+
+      <Card>
+        <div className="mb-2 flex items-center justify-between">
+          <h4 className="text-sm font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+            {t('Корзина входящих', 'Inbox Trash')}
+          </h4>
+          <Badge>{trashedItems.length}</Badge>
+        </div>
+        <div className="space-y-2">
+          {trashedItems.length === 0 ? (
+            <p className="text-sm text-[var(--muted-foreground)]">
+              {t('Корзина пуста.', 'Trash is empty.')}
+            </p>
+          ) : (
+            trashedItems.map((item) => (
+              <div
+                key={item.id}
+                className="rounded-md border border-[var(--border)] bg-[var(--muted)]/30 p-3"
+              >
+                <div className="mb-1 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Badge>
+                      {locale === 'ru' ? (sourceLabels[item.source] ?? item.source) : item.source}
+                    </Badge>
+                    <Badge>
+                      {t('Было', 'Was')}: {locale === 'ru'
+                        ? (statusLabels[item.previous_status] ?? item.previous_status)
+                        : item.previous_status}
+                    </Badge>
+                  </div>
+                  <span className="text-xs text-[var(--muted-foreground)]">
+                    {new Date(item.deleted_at).toLocaleString()}
+                  </span>
+                </div>
+                <p className="text-sm">{item.content_text}</p>
+                <Button
+                  className="mt-3"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void onRestore(item.id)}
+                  disabled={state === 'loading'}
+                >
+                  <RotateCcw size={14} />
+                  {t('Восстановить', 'Restore')}
+                </Button>
               </div>
             ))
           )}

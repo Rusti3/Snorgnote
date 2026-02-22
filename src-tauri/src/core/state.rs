@@ -1,9 +1,10 @@
 use std::{
+    collections::{HashMap, HashSet},
     fs,
     path::{Component, Path, PathBuf},
     sync::{atomic::AtomicBool, Arc, Mutex},
     thread::JoinHandle,
-    time::Duration as StdDuration,
+    time::{Duration as StdDuration, UNIX_EPOCH},
 };
 
 use anyhow::{anyhow, bail, Context, Result};
@@ -17,7 +18,7 @@ use crate::core::{
     db::{init_schema, BUILTIN_SKILLS, DEFAULT_PROJECT_ID},
     types::{
         InboxItemView, JobRunReport, NoteDocument, NoteSummary, SkillConfig, SkillRecord,
-        SkillRunResult,
+        SkillRunResult, TrashedInboxItem, TrashedNoteSummary,
     },
     utils::{
         extract_title, extract_wiki_links, normalize_job_type, now_rfc3339, parse_frontmatter,
@@ -51,6 +52,9 @@ pub struct AppState {
     pub db_path: PathBuf,
     pub telegram_runtime: Arc<Mutex<TelegramRuntime>>,
 }
+
+const TRASH_ROOT_DIR: &str = ".snorgnote_trash";
+const TRASH_NOTES_DIR: &str = ".snorgnote_trash/notes";
 
 impl AppState {
     pub fn bootstrap(app: &tauri::AppHandle) -> Result<Self> {
@@ -170,6 +174,24 @@ impl AppState {
             return Ok(());
         }
 
+        let mut indexed_state = HashMap::new();
+        {
+            let mut stmt =
+                conn.prepare("SELECT path, mtime_ms, size_bytes FROM vault_index_state")?;
+            let rows = stmt.query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, i64>(2)?,
+                ))
+            })?;
+            for row in rows {
+                let (path, mtime_ms, size_bytes) = row?;
+                indexed_state.insert(path, (mtime_ms, size_bytes));
+            }
+        }
+
+        let mut seen_paths = HashSet::new();
         for entry in WalkDir::new(&self.vault_root)
             .into_iter()
             .filter_map(Result::ok)
@@ -190,9 +212,49 @@ impl AppState {
                 .context("cannot compute relative path")?
                 .to_string_lossy()
                 .replace('\\', "/");
+            if is_trash_rel_path(&rel_path) {
+                continue;
+            }
 
-            let body = fs::read_to_string(entry.path()).unwrap_or_default();
-            let _ = self.upsert_note_from_body(conn, &rel_path, &body, None)?;
+            seen_paths.insert(rel_path.clone());
+
+            let metadata = entry.metadata()?;
+            let size_bytes = metadata.len() as i64;
+            let mtime_ms = file_mtime_ms(&metadata)?;
+            let should_reindex = match indexed_state.get(&rel_path) {
+                Some((indexed_mtime, indexed_size)) => {
+                    *indexed_mtime != mtime_ms || *indexed_size != size_bytes
+                }
+                None => true,
+            };
+
+            if should_reindex {
+                let body = fs::read_to_string(entry.path()).unwrap_or_default();
+                let _ = self.upsert_note_from_body(conn, &rel_path, &body, None)?;
+                self.upsert_index_state(conn, &rel_path, mtime_ms, size_bytes)?;
+            }
+        }
+
+        for stale_path in indexed_state
+            .keys()
+            .filter(|path| !seen_paths.contains(*path))
+        {
+            conn.execute(
+                "DELETE FROM vault_index_state WHERE path = ?1",
+                params![stale_path],
+            )?;
+
+            let note_id = conn
+                .query_row(
+                    "SELECT id FROM notes WHERE path = ?1",
+                    params![stale_path],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?;
+            if let Some(note_id) = note_id {
+                conn.execute("DELETE FROM notes_fts WHERE note_id = ?1", params![note_id])?;
+                conn.execute("DELETE FROM notes WHERE id = ?1", params![note_id])?;
+            }
         }
 
         Ok(())
@@ -228,6 +290,13 @@ impl AppState {
             .with_context(|| format!("note does not exist: {}", abs_path.display()))?;
         let conn = self.conn()?;
         let note_id = self.upsert_note_from_body(&conn, rel_path, &body, None)?;
+        let metadata = fs::metadata(&abs_path)?;
+        self.upsert_index_state(
+            &conn,
+            &rel_path.replace('\\', "/"),
+            file_mtime_ms(&metadata)?,
+            metadata.len() as i64,
+        )?;
         let (frontmatter, _) = parse_frontmatter(&body);
 
         Ok(NoteDocument {
@@ -252,6 +321,13 @@ impl AppState {
         let source_ref = Some(format!("vault:{rel_path}"));
         let note_id =
             self.upsert_note_from_body(&conn, rel_path, body_md, source_ref.as_deref())?;
+        let metadata = fs::metadata(&abs_path)?;
+        self.upsert_index_state(
+            &conn,
+            &rel_path.replace('\\', "/"),
+            file_mtime_ms(&metadata)?,
+            metadata.len() as i64,
+        )?;
         let (frontmatter, _) = parse_frontmatter(body_md);
 
         self.insert_event(
@@ -267,6 +343,181 @@ impl AppState {
             path: rel_path.replace('\\', "/"),
             title: extract_title(body_md, rel_path),
             body_md: body_md.to_string(),
+            frontmatter,
+            updated_at: now_rfc3339(),
+        })
+    }
+
+    pub fn vault_delete_note(&self, rel_path: &str) -> Result<()> {
+        let abs_path = self.resolve_markdown_path(rel_path)?;
+        if !abs_path.exists() {
+            bail!("note does not exist: {}", abs_path.display());
+        }
+
+        let clean_path = rel_path.replace('\\', "/");
+        let conn = self.conn()?;
+        self.reindex_vault(&conn)?;
+
+        let note_meta = conn
+            .query_row(
+                "SELECT id, title FROM notes WHERE path = ?1",
+                params![clean_path],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .optional()?;
+        let (note_id, title) = match note_meta {
+            Some((note_id, title)) => (Some(note_id), title),
+            None => (
+                None,
+                extract_title(&fs::read_to_string(&abs_path)?, &clean_path),
+            ),
+        };
+
+        let trash_id = Uuid::new_v4().to_string();
+        let trashed_rel_path = format!("{TRASH_NOTES_DIR}/{trash_id}.md");
+        let trashed_abs_path = self.vault_root.join(&trashed_rel_path);
+        if let Some(parent) = trashed_abs_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::rename(&abs_path, &trashed_abs_path).with_context(|| {
+            format!(
+                "failed to move note to trash: {} -> {}",
+                abs_path.display(),
+                trashed_abs_path.display()
+            )
+        })?;
+
+        let deleted_at = now_rfc3339();
+        conn.execute(
+            "INSERT INTO notes_trash (id, note_id, title, original_path, trashed_path, deleted_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                trash_id,
+                note_id.clone(),
+                title,
+                clean_path.clone(),
+                trashed_rel_path,
+                deleted_at
+            ],
+        )?;
+
+        conn.execute(
+            "DELETE FROM vault_index_state WHERE path = ?1",
+            params![clean_path],
+        )?;
+        if let Some(note_id) = note_id {
+            conn.execute("DELETE FROM notes_fts WHERE note_id = ?1", params![note_id])?;
+            conn.execute("DELETE FROM notes WHERE id = ?1", params![note_id])?;
+        } else {
+            conn.execute("DELETE FROM notes WHERE path = ?1", params![clean_path])?;
+        }
+
+        self.insert_event(
+            &conn,
+            "note.trashed",
+            "note",
+            None,
+            &json!({ "path": clean_path }),
+        )?;
+        Ok(())
+    }
+
+    pub fn vault_trash_list(&self) -> Result<Vec<TrashedNoteSummary>> {
+        let conn = self.conn()?;
+        let mut stmt = conn.prepare(
+            "SELECT id, title, original_path, deleted_at
+             FROM notes_trash
+             ORDER BY deleted_at DESC
+             LIMIT 500",
+        )?;
+
+        let rows = stmt.query_map([], |row| {
+            Ok(TrashedNoteSummary {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                original_path: row.get(2)?,
+                deleted_at: row.get(3)?,
+            })
+        })?;
+
+        let mut list = Vec::new();
+        for row in rows {
+            list.push(row?);
+        }
+        Ok(list)
+    }
+
+    pub fn vault_restore_note(&self, trash_id: &str) -> Result<NoteDocument> {
+        let conn = self.conn()?;
+        let row = conn
+            .query_row(
+                "SELECT original_path, trashed_path, title FROM notes_trash WHERE id = ?1",
+                params![trash_id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                },
+            )
+            .optional()?
+            .ok_or_else(|| anyhow!("trash entry `{trash_id}` not found"))?;
+        let (original_path, trashed_path, title) = row;
+
+        let trashed_abs_path = self.vault_root.join(&trashed_path);
+        if !trashed_abs_path.exists() {
+            bail!(
+                "trashed note file does not exist: {}",
+                trashed_abs_path.display()
+            );
+        }
+
+        let mut target_rel_path = original_path.clone();
+        let mut target_abs_path = self.resolve_markdown_path(&target_rel_path)?;
+        if target_abs_path.exists() {
+            target_rel_path = build_restored_rel_path(&original_path);
+            target_abs_path = self.resolve_markdown_path(&target_rel_path)?;
+        }
+
+        if let Some(parent) = target_abs_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::rename(&trashed_abs_path, &target_abs_path).with_context(|| {
+            format!(
+                "failed to restore note from trash: {} -> {}",
+                trashed_abs_path.display(),
+                target_abs_path.display()
+            )
+        })?;
+
+        let body = fs::read_to_string(&target_abs_path)?;
+        let source_ref = format!("vault:{target_rel_path}");
+        let note_id =
+            self.upsert_note_from_body(&conn, &target_rel_path, &body, Some(&source_ref))?;
+        let metadata = fs::metadata(&target_abs_path)?;
+        self.upsert_index_state(
+            &conn,
+            &target_rel_path,
+            file_mtime_ms(&metadata)?,
+            metadata.len() as i64,
+        )?;
+        conn.execute("DELETE FROM notes_trash WHERE id = ?1", params![trash_id])?;
+
+        self.insert_event(
+            &conn,
+            "note.restored",
+            "note",
+            Some(&note_id),
+            &json!({ "path": target_rel_path }),
+        )?;
+
+        let (frontmatter, _) = parse_frontmatter(&body);
+        Ok(NoteDocument {
+            id: note_id,
+            path: target_rel_path,
+            title,
+            body_md: body,
             frontmatter,
             updated_at: now_rfc3339(),
         })
@@ -332,6 +583,25 @@ impl AppState {
         }
 
         Ok(note_id)
+    }
+
+    fn upsert_index_state(
+        &self,
+        conn: &Connection,
+        rel_path: &str,
+        mtime_ms: i64,
+        size_bytes: i64,
+    ) -> Result<()> {
+        conn.execute(
+            "INSERT INTO vault_index_state (path, mtime_ms, size_bytes, last_indexed_at)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(path) DO UPDATE SET
+               mtime_ms = excluded.mtime_ms,
+               size_bytes = excluded.size_bytes,
+               last_indexed_at = excluded.last_indexed_at",
+            params![rel_path, mtime_ms, size_bytes, now_rfc3339()],
+        )?;
+        Ok(())
     }
 
     pub fn inbox_add_item(
@@ -402,6 +672,7 @@ impl AppState {
             let mut stmt = conn.prepare(
                 "SELECT id, source, content_text, created_at, status, project_hint, tags_json
          FROM inbox_items
+         WHERE status != 'trashed'
          ORDER BY created_at DESC
          LIMIT 200",
             )?;
@@ -423,6 +694,135 @@ impl AppState {
         }
 
         Ok(items)
+    }
+
+    pub fn inbox_trash_item(&self, inbox_id: &str) -> Result<()> {
+        let conn = self.conn()?;
+        let previous_status = conn
+            .query_row(
+                "SELECT status FROM inbox_items WHERE id = ?1",
+                params![inbox_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?
+            .ok_or_else(|| anyhow!("inbox item `{inbox_id}` not found"))?;
+
+        if previous_status == "trashed" {
+            return Ok(());
+        }
+
+        let deleted_at = now_rfc3339();
+        conn.execute(
+            "INSERT INTO inbox_trash (inbox_item_id, previous_status, deleted_at)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT(inbox_item_id) DO UPDATE SET
+               previous_status = excluded.previous_status,
+               deleted_at = excluded.deleted_at",
+            params![inbox_id, previous_status, deleted_at],
+        )?;
+        conn.execute(
+            "UPDATE inbox_items SET status = 'trashed', updated_at = ?1 WHERE id = ?2",
+            params![deleted_at, inbox_id],
+        )?;
+
+        self.insert_event(
+            &conn,
+            "inbox.trashed",
+            "inbox_item",
+            Some(inbox_id),
+            &json!({}),
+        )?;
+        Ok(())
+    }
+
+    pub fn inbox_trash_list(&self) -> Result<Vec<TrashedInboxItem>> {
+        let conn = self.conn()?;
+        let mut stmt = conn.prepare(
+            "SELECT
+               i.id,
+               i.source,
+               i.content_text,
+               i.created_at,
+               t.deleted_at,
+               i.tags_json,
+               t.previous_status
+             FROM inbox_items i
+             JOIN inbox_trash t ON t.inbox_item_id = i.id
+             ORDER BY t.deleted_at DESC
+             LIMIT 500",
+        )?;
+
+        let rows = stmt.query_map([], |row| {
+            let tags_json: String = row.get(5)?;
+            Ok(TrashedInboxItem {
+                id: row.get(0)?,
+                source: row.get(1)?,
+                content_text: row.get(2)?,
+                created_at: row.get(3)?,
+                deleted_at: row.get(4)?,
+                tags: parse_tags_json(&tags_json),
+                previous_status: row.get(6)?,
+            })
+        })?;
+
+        let mut list = Vec::new();
+        for row in rows {
+            list.push(row?);
+        }
+        Ok(list)
+    }
+
+    pub fn inbox_restore_item(&self, inbox_id: &str) -> Result<InboxItemView> {
+        let conn = self.conn()?;
+        let previous_status = conn
+            .query_row(
+                "SELECT previous_status FROM inbox_trash WHERE inbox_item_id = ?1",
+                params![inbox_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?
+            .ok_or_else(|| anyhow!("inbox item `{inbox_id}` is not in trash"))?;
+
+        conn.execute(
+            "UPDATE inbox_items SET status = ?1, updated_at = ?2 WHERE id = ?3",
+            params![previous_status, now_rfc3339(), inbox_id],
+        )?;
+        conn.execute(
+            "DELETE FROM inbox_trash WHERE inbox_item_id = ?1",
+            params![inbox_id],
+        )?;
+
+        self.insert_event(
+            &conn,
+            "inbox.restored",
+            "inbox_item",
+            Some(inbox_id),
+            &json!({}),
+        )?;
+
+        let item = conn
+            .query_row(
+                "SELECT id, source, content_text, created_at, status, project_hint, tags_json
+                 FROM inbox_items
+                 WHERE id = ?1",
+                params![inbox_id],
+                |row| {
+                    let tags_json: String = row.get(6)?;
+                    Ok(InboxItemView {
+                        id: row.get(0)?,
+                        source: row.get(1)?,
+                        content_text: row.get(2)?,
+                        created_at: row.get(3)?,
+                        status: row.get(4)?,
+                        project_hint: row.get(5)?,
+                        tags: parse_tags_json(&tags_json),
+                    })
+                },
+            )
+            .optional()?
+            .ok_or_else(|| anyhow!("inbox item `{inbox_id}` not found after restore"))?;
+
+        Ok(item)
     }
 
     pub fn inbox_process(&self, limit: u32) -> Result<JobRunReport> {
@@ -598,6 +998,179 @@ impl AppState {
         content.push('\n');
 
         let _ = self.vault_save_note(note_path, &content)?;
+        Ok(())
+    }
+}
+
+fn is_trash_rel_path(rel_path: &str) -> bool {
+    rel_path == TRASH_ROOT_DIR || rel_path.starts_with(&format!("{TRASH_ROOT_DIR}/"))
+}
+
+fn file_mtime_ms(metadata: &fs::Metadata) -> Result<i64> {
+    let modified = metadata.modified().context("cannot read file mtime")?;
+    let duration = modified
+        .duration_since(UNIX_EPOCH)
+        .context("file mtime is before unix epoch")?;
+    Ok(duration.as_millis() as i64)
+}
+
+fn build_restored_rel_path(original_path: &str) -> String {
+    let path = Path::new(original_path);
+    let parent = path
+        .parent()
+        .map(|value| value.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_default();
+    let stem = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("note");
+    let suffix_full = Uuid::new_v4().simple().to_string();
+    let suffix = &suffix_full[..8];
+    let file_name = format!("{stem}-restored-{suffix}.md");
+
+    if parent.is_empty() {
+        file_name
+    } else {
+        format!("{parent}/{file_name}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{fs, thread, time::Duration};
+
+    use anyhow::Result;
+    use tempfile::tempdir;
+
+    use super::AppState;
+
+    #[test]
+    fn vault_delete_moves_note_to_trash_and_hides_from_list() -> Result<()> {
+        let temp = tempdir()?;
+        let state = AppState::for_test(temp.path())?;
+
+        let path = "Notes/delete-me.md";
+        let _ = state.vault_save_note(path, "# Delete me\n\nbody")?;
+
+        let before = state.vault_list_notes()?;
+        assert!(before.iter().any(|note| note.path == path));
+
+        state.vault_delete_note(path)?;
+
+        let after = state.vault_list_notes()?;
+        assert!(!after.iter().any(|note| note.path == path));
+
+        let trash = state.vault_trash_list()?;
+        assert_eq!(trash.len(), 1);
+        assert_eq!(trash[0].original_path, path);
+
+        Ok(())
+    }
+
+    #[test]
+    fn vault_restore_returns_note_to_original_path() -> Result<()> {
+        let temp = tempdir()?;
+        let state = AppState::for_test(temp.path())?;
+
+        let path = "Notes/restore-me.md";
+        let body = "# Restore me\n\ntext";
+        let _ = state.vault_save_note(path, body)?;
+        state.vault_delete_note(path)?;
+
+        let trash = state.vault_trash_list()?;
+        assert_eq!(trash.len(), 1);
+
+        let restored = state.vault_restore_note(&trash[0].id)?;
+        assert_eq!(restored.path, path);
+
+        let reopened = state.vault_get_note(path)?;
+        assert_eq!(reopened.body_md, body);
+
+        let trash_after = state.vault_trash_list()?;
+        assert!(trash_after.is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn inbox_trash_hides_item_and_restore_returns_it() -> Result<()> {
+        let temp = tempdir()?;
+        let state = AppState::for_test(temp.path())?;
+
+        let item = state.inbox_add_item(
+            "quick_note".to_string(),
+            "delete this inbox item".to_string(),
+            vec![],
+            None,
+        )?;
+
+        state.inbox_trash_item(&item.id)?;
+
+        let visible = state.inbox_list(None)?;
+        assert!(!visible.iter().any(|candidate| candidate.id == item.id));
+
+        let trash = state.inbox_trash_list()?;
+        assert_eq!(trash.len(), 1);
+        assert_eq!(trash[0].id, item.id);
+
+        let restored = state.inbox_restore_item(&item.id)?;
+        assert_eq!(restored.id, item.id);
+        assert_eq!(restored.status, "new");
+
+        let visible_after_restore = state.inbox_list(None)?;
+        assert!(visible_after_restore
+            .iter()
+            .any(|candidate| candidate.id == item.id));
+
+        Ok(())
+    }
+
+    #[test]
+    fn reindex_skips_unchanged_files() -> Result<()> {
+        let temp = tempdir()?;
+        let state = AppState::for_test(temp.path())?;
+
+        let path = "Notes/stable.md";
+        let _ = state.vault_save_note(path, "# Stable\n\nv1")?;
+
+        let _ = state.vault_list_notes()?;
+        let conn = state.conn()?;
+        let updated_before: String = conn.query_row(
+            "SELECT updated_at FROM notes WHERE path = ?1",
+            rusqlite::params![path],
+            |row| row.get(0),
+        )?;
+        drop(conn);
+
+        thread::sleep(Duration::from_millis(25));
+        let _ = state.vault_list_notes()?;
+
+        let conn = state.conn()?;
+        let updated_after: String = conn.query_row(
+            "SELECT updated_at FROM notes WHERE path = ?1",
+            rusqlite::params![path],
+            |row| row.get(0),
+        )?;
+
+        assert_eq!(updated_before, updated_after);
+        Ok(())
+    }
+
+    #[test]
+    fn reindex_removes_deleted_files_from_index() -> Result<()> {
+        let temp = tempdir()?;
+        let state = AppState::for_test(temp.path())?;
+
+        let path = "Notes/remove-from-index.md";
+        let _ = state.vault_save_note(path, "# Remove\n\nbody")?;
+        let _ = state.vault_list_notes()?;
+
+        let abs_path = state.resolve_markdown_path(path)?;
+        fs::remove_file(abs_path)?;
+
+        let list_after_delete = state.vault_list_notes()?;
+        assert!(!list_after_delete.iter().any(|note| note.path == path));
+
         Ok(())
     }
 }

@@ -89,8 +89,8 @@ export default function App() {
             <h2 className="font-display text-2xl font-semibold">{title}</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
               {t(
-                'v0.1.5: переключение языка в настройках, локальный vault, конвейер задач, навыки, планирование, фокус и метрики.',
-                'v0.1.5: language switch in settings, local-first vault, job pipeline, skills, planning, focus and metrics.',
+                'v0.1.6: корзина заметок и входящих, восстановление из UI и более быстрый инкрементальный индекс vault.',
+                'v0.1.6: notes/inbox trash with restore and faster incremental vault indexing.',
               )}
             </p>
           </Card>

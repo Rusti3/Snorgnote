@@ -20,6 +20,14 @@ pub struct NoteDocument {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct TrashedNoteSummary {
+    pub id: String,
+    pub title: String,
+    pub original_path: String,
+    pub deleted_at: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct InboxItemView {
     pub id: String,
     pub source: String,
@@ -28,6 +36,17 @@ pub struct InboxItemView {
     pub status: String,
     pub project_hint: Option<String>,
     pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TrashedInboxItem {
+    pub id: String,
+    pub source: String,
+    pub content_text: String,
+    pub created_at: String,
+    pub deleted_at: String,
+    pub tags: Vec<String>,
+    pub previous_status: String,
 }
 
 #[derive(Debug, Clone, Serialize)]

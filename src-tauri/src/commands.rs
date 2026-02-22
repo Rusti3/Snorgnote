@@ -31,6 +31,30 @@ pub fn vault_save_note(
 }
 
 #[tauri::command]
+pub fn vault_delete_note(state: State<'_, AppState>, path: String) -> Result<(), String> {
+    state
+        .vault_delete_note(&path)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn vault_trash_list(
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::core::TrashedNoteSummary>, String> {
+    state.vault_trash_list().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn vault_restore_note(
+    state: State<'_, AppState>,
+    trash_id: String,
+) -> Result<crate::core::NoteDocument, String> {
+    state
+        .vault_restore_note(&trash_id)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn inbox_add_item(
     state: State<'_, AppState>,
     source: String,
@@ -58,6 +82,30 @@ pub fn inbox_process(
 ) -> Result<crate::core::JobRunReport, String> {
     state
         .inbox_process(limit.unwrap_or(20))
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn inbox_trash_item(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    state
+        .inbox_trash_item(&id)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn inbox_trash_list(
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::core::TrashedInboxItem>, String> {
+    state.inbox_trash_list().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn inbox_restore_item(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<crate::core::InboxItemView, String> {
+    state
+        .inbox_restore_item(&id)
         .map_err(|error| error.to_string())
 }
 

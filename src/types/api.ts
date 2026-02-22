@@ -14,6 +14,13 @@ export interface NoteDocument {
   updated_at: string
 }
 
+export interface TrashedNoteSummary {
+  id: string
+  title: string
+  original_path: string
+  deleted_at: string
+}
+
 export interface InboxItemView {
   id: string
   source: string
@@ -22,6 +29,16 @@ export interface InboxItemView {
   status: string
   project_hint?: string
   tags: string[]
+}
+
+export interface TrashedInboxItem {
+  id: string
+  source: string
+  content_text: string
+  created_at: string
+  deleted_at: string
+  tags: string[]
+  previous_status: string
 }
 
 export interface JobRunReport {

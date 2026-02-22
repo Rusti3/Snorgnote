@@ -3,9 +3,11 @@ import { useState } from 'react'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { api } from '../lib/api'
+import { useLocale } from '../lib/locale'
 import type { DailyPlan, WeeklyPlan } from '../types/api'
 
 export function PlanningPanel() {
+  const { t } = useLocale()
   const [daily, setDaily] = useState<DailyPlan | null>(null)
   const [weekly, setWeekly] = useState<WeeklyPlan | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -18,7 +20,9 @@ export function PlanningPanel() {
       const result = await api.plannerGenerateDaily()
       setDaily(result)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось сгенерировать план на день')
+      setError(
+        err instanceof Error ? err.message : t('Не удалось сгенерировать план на день', 'Daily generation failed'),
+      )
     } finally {
       setLoading(false)
     }
@@ -31,7 +35,9 @@ export function PlanningPanel() {
       const result = await api.plannerGenerateWeekly()
       setWeekly(result)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось сгенерировать план на неделю')
+      setError(
+        err instanceof Error ? err.message : t('Не удалось сгенерировать план на неделю', 'Weekly generation failed'),
+      )
     } finally {
       setLoading(false)
     }
@@ -40,13 +46,13 @@ export function PlanningPanel() {
   return (
     <div className="space-y-4">
       <Card>
-        <h3 className="mb-3 text-lg font-semibold">Планировщик</h3>
+        <h3 className="mb-3 text-lg font-semibold">{t('Планировщик', 'Planning Engine')}</h3>
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => void generateDaily()} disabled={loading}>
-            Сгенерировать день
+            {t('Сгенерировать день', 'Generate Daily')}
           </Button>
           <Button variant="outline" onClick={() => void generateWeekly()} disabled={loading}>
-            Сгенерировать неделю
+            {t('Сгенерировать неделю', 'Generate Weekly')}
           </Button>
         </div>
         {error ? <p className="mt-2 text-sm text-[var(--danger)]">{error}</p> : null}
@@ -55,7 +61,7 @@ export function PlanningPanel() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <h4 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-            День
+            {t('День', 'Daily')}
           </h4>
           {daily ? (
             <>
@@ -71,14 +77,14 @@ export function PlanningPanel() {
             </>
           ) : (
             <p className="text-sm text-[var(--muted-foreground)]">
-              План на день пока не создан.
+              {t('План на день пока не создан.', 'No daily plan generated yet.')}
             </p>
           )}
         </Card>
 
         <Card>
           <h4 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-            Неделя
+            {t('Неделя', 'Weekly')}
           </h4>
           {weekly ? (
             <>
@@ -94,7 +100,7 @@ export function PlanningPanel() {
             </>
           ) : (
             <p className="text-sm text-[var(--muted-foreground)]">
-              План на неделю пока не создан.
+              {t('План на неделю пока не создан.', 'No weekly plan generated yet.')}
             </p>
           )}
         </Card>

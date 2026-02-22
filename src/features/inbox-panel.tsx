@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { api } from '../lib/api'
+import { useLocale } from '../lib/locale'
 import type { InboxItemView } from '../types/api'
 
 type LoadState = 'idle' | 'loading' | 'error'
@@ -21,6 +22,7 @@ const statusLabels: Record<string, string> = {
 }
 
 export function InboxPanel() {
+  const { locale, t } = useLocale()
   const [source, setSource] = useState('quick_note')
   const [content, setContent] = useState('')
   const [tags, setTags] = useState('')
@@ -33,7 +35,7 @@ export function InboxPanel() {
     [items],
   )
 
-  async function loadInbox() {
+  const loadInbox = useCallback(async () => {
     setState('loading')
     setError(null)
     try {
@@ -41,14 +43,14 @@ export function InboxPanel() {
       setItems(result)
       setState('idle')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось загрузить входящие')
+      setError(err instanceof Error ? err.message : t('Не удалось загрузить входящие', 'Failed to load inbox'))
       setState('error')
     }
-  }
+  }, [t])
 
   useEffect(() => {
     void loadInbox()
-  }, [])
+  }, [loadInbox])
 
   async function onCapture() {
     if (!content.trim()) return
@@ -66,7 +68,9 @@ export function InboxPanel() {
       setContent('')
       await loadInbox()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось сохранить элемент во входящие')
+      setError(
+        err instanceof Error ? err.message : t('Не удалось сохранить элемент во входящие', 'Failed to save inbox item'),
+      )
       setState('error')
     }
   }
@@ -78,7 +82,7 @@ export function InboxPanel() {
       await api.inboxProcess(20)
       await loadInbox()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось обработать входящие')
+      setError(err instanceof Error ? err.message : t('Не удалось обработать входящие', 'Failed to process inbox'))
       setState('error')
     }
   }
@@ -87,8 +91,8 @@ export function InboxPanel() {
     <div className="space-y-4">
       <Card>
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Захват / Входящие</h3>
-          <Badge>{newCount} новых</Badge>
+          <h3 className="text-lg font-semibold">{t('Захват / Входящие', 'Capture / Inbox')}</h3>
+          <Badge>{locale === 'ru' ? `${newCount} новых` : `${newCount} new`}</Badge>
         </div>
         <div className="grid gap-2 md:grid-cols-[180px_1fr]">
           <select
@@ -96,41 +100,41 @@ export function InboxPanel() {
             value={source}
             onChange={(event) => setSource(event.target.value)}
           >
-            <option value="quick_note">быстрая заметка</option>
+            <option value="quick_note">{t('быстрая заметка', 'quick note')}</option>
             <option value="telegram">telegram</option>
-            <option value="browser">браузер</option>
-            <option value="email">почта</option>
+            <option value="browser">{t('браузер', 'browser')}</option>
+            <option value="email">{t('почта', 'email')}</option>
           </select>
           <input
             className="h-10 rounded-md border border-[var(--border)] bg-[var(--background)] px-3"
-            placeholder="теги, через запятую"
+            placeholder={t('теги, через запятую', 'tags, comma separated')}
             value={tags}
             onChange={(event) => setTags(event.target.value)}
           />
         </div>
         <textarea
           className="mt-2 min-h-28 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-          placeholder="Добавьте сырой материал сюда..."
+          placeholder={t('Добавьте сырой материал сюда...', 'Drop raw capture here...')}
           value={content}
           onChange={(event) => setContent(event.target.value)}
         />
         <div className="mt-3 flex gap-2">
           <Button onClick={() => void onCapture()} disabled={state === 'loading'}>
-            Сохранить во входящие
+            {t('Сохранить во входящие', 'Save to Inbox')}
           </Button>
           <Button
             variant="outline"
             onClick={() => void onProcess()}
             disabled={state === 'loading'}
           >
-            Обработать очередь
+            {t('Обработать очередь', 'Process Queue')}
           </Button>
           <Button
             variant="ghost"
             onClick={() => void loadInbox()}
             disabled={state === 'loading'}
           >
-            Обновить
+            {t('Обновить', 'Refresh')}
           </Button>
         </div>
         {error ? <p className="mt-2 text-sm text-[var(--danger)]">{error}</p> : null}
@@ -138,11 +142,11 @@ export function InboxPanel() {
 
       <Card>
         <h4 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-          Элементы входящих
+          {t('Элементы входящих', 'Inbox Items')}
         </h4>
         <div className="space-y-2">
           {items.length === 0 ? (
-            <p className="text-sm text-[var(--muted-foreground)]">Входящие пусты.</p>
+            <p className="text-sm text-[var(--muted-foreground)]">{t('Входящие пусты.', 'Inbox is empty.')}</p>
           ) : (
             items.map((item) => (
               <div
@@ -151,8 +155,14 @@ export function InboxPanel() {
               >
                 <div className="mb-1 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <Badge>{sourceLabels[item.source] ?? item.source}</Badge>
-                    <Badge>{statusLabels[item.status] ?? item.status}</Badge>
+                    <Badge>
+                      {locale === 'ru' ? (sourceLabels[item.source] ?? item.source) : item.source}
+                    </Badge>
+                    <Badge>
+                      {locale === 'ru'
+                        ? (statusLabels[item.status] ?? item.status)
+                        : item.status}
+                    </Badge>
                   </div>
                   <span className="text-xs text-[var(--muted-foreground)]">
                     {new Date(item.created_at).toLocaleString()}

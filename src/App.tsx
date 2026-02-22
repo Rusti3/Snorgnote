@@ -11,24 +11,30 @@ import { ProjectsPanel } from './features/projects-panel'
 import { SettingsPanel } from './features/settings-panel'
 import { StatsPanel } from './features/stats-panel'
 import { api } from './lib/api'
+import { useLocale } from './lib/locale'
 
 type TabId = 'inbox' | 'notes' | 'planning' | 'projects' | 'focus' | 'stats' | 'settings'
 
-const tabs: Array<{ id: TabId; label: string; icon: typeof Inbox }> = [
-  { id: 'inbox', label: 'Входящие', icon: Inbox },
-  { id: 'notes', label: 'Заметки', icon: ScrollText },
-  { id: 'planning', label: 'День/Неделя', icon: CalendarDays },
-  { id: 'projects', label: 'Проекты', icon: FolderKanban },
-  { id: 'focus', label: 'Фокус', icon: Clock4 },
-  { id: 'stats', label: 'Статистика', icon: Brain },
-  { id: 'settings', label: 'Настройки', icon: Settings },
-]
-
 export default function App() {
+  const { t } = useLocale()
   const [tab, setTab] = useState<TabId>('inbox')
+
+  const tabs = useMemo<Array<{ id: TabId; label: string; icon: typeof Inbox }>>(
+    () => [
+      { id: 'inbox', label: t('Входящие', 'Inbox'), icon: Inbox },
+      { id: 'notes', label: t('Заметки', 'Notes'), icon: ScrollText },
+      { id: 'planning', label: t('День/Неделя', 'Daily/Weekly'), icon: CalendarDays },
+      { id: 'projects', label: t('Проекты', 'Projects'), icon: FolderKanban },
+      { id: 'focus', label: t('Фокус', 'Focus'), icon: Clock4 },
+      { id: 'stats', label: t('Статистика', 'Stats'), icon: Brain },
+      { id: 'settings', label: t('Настройки', 'Settings'), icon: Settings },
+    ],
+    [t],
+  )
+
   const title = useMemo(
     () => tabs.find((candidate) => candidate.id === tab)?.label ?? 'Snorgnote',
-    [tab],
+    [tab, tabs],
   )
 
   return (
@@ -39,7 +45,10 @@ export default function App() {
             <div className="bg-[var(--surface-gradient)] p-4">
               <h1 className="font-display text-2xl font-semibold">Snorgnote</h1>
               <p className="text-sm text-[var(--muted-foreground)]">
-                {'Собрать -> Обработать -> Организовать -> Действовать -> Измерить -> Прокачаться'}
+                {t(
+                  'Собрать -> Обработать -> Организовать -> Действовать -> Измерить -> Прокачаться',
+                  'Capture -> Process -> Organize -> Act -> Measure -> Level up',
+                )}
               </p>
             </div>
             <div className="space-y-1 p-2">
@@ -65,9 +74,13 @@ export default function App() {
 
           <Card>
             <p className="mb-1 text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
-              Режим
+              {t('Режим', 'Mode')}
             </p>
-            <Badge>{api.isTauri() ? 'Tauri (нативный)' : 'Веб (мок)'}</Badge>
+            <Badge>
+              {api.isTauri()
+                ? t('Tauri (нативный)', 'Tauri (native)')
+                : t('Веб (мок)', 'Web (mock)')}
+            </Badge>
           </Card>
         </aside>
 
@@ -75,7 +88,10 @@ export default function App() {
           <Card>
             <h2 className="font-display text-2xl font-semibold">{title}</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
-              v0.1.4: русская локализация интерфейса, локальный vault, конвейер задач, навыки, планирование, фокус и метрики.
+              {t(
+                'v0.1.5: переключение языка в настройках, локальный vault, конвейер задач, навыки, планирование, фокус и метрики.',
+                'v0.1.5: language switch in settings, local-first vault, job pipeline, skills, planning, focus and metrics.',
+              )}
             </p>
           </Card>
 

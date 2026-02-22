@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { api } from '../lib/api'
+import { useLocale } from '../lib/locale'
 import type {
   TelegramPollReport,
   TelegramStatus,
@@ -11,6 +12,7 @@ import type {
 } from '../types/api'
 
 export function SettingsPanel() {
+  const { locale, setLocale, t } = useLocale()
   const [botToken, setBotToken] = useState('')
   const [username, setUsername] = useState('')
   const [status, setStatus] = useState<TelegramStatus | null>(null)
@@ -28,9 +30,9 @@ export function SettingsPanel() {
         setUsername(result.username)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось загрузить статус Telegram')
+      setError(err instanceof Error ? err.message : t('Не удалось загрузить статус Telegram', 'Failed to load Telegram status'))
     }
-  }, [username])
+  }, [t, username])
 
   useEffect(() => {
     void loadStatus()
@@ -43,9 +45,14 @@ export function SettingsPanel() {
     try {
       const result = await api.telegramSetConfig(botToken, username)
       setStatus(result)
-      setInfo('Конфиг Telegram сохранен. Теперь сгенерируйте одноразовый код и отправьте его боту в личные сообщения.')
+      setInfo(
+        t(
+          'Конфиг Telegram сохранен. Теперь сгенерируйте одноразовый код и отправьте его боту в личные сообщения.',
+          'Telegram config saved. Generate a one-time code and send it to your bot in private chat.',
+        ),
+      )
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось сохранить конфиг Telegram')
+      setError(err instanceof Error ? err.message : t('Не удалось сохранить конфиг Telegram', 'Failed to save Telegram config'))
     }
   }
 
@@ -55,9 +62,18 @@ export function SettingsPanel() {
     try {
       const result = await api.telegramBeginVerification()
       setVerification(result)
-      setInfo('Отправьте этот код боту в личные сообщения Telegram, затем нажмите «Проверить сейчас».')
+      setInfo(
+        t(
+          'Отправьте этот код боту в личные сообщения Telegram, затем нажмите «Проверить сейчас».',
+          'Send this code to your Telegram bot in private chat, then click "Poll Now".',
+        ),
+      )
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось сгенерировать код верификации')
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('Не удалось сгенерировать код верификации', 'Failed to generate verification code'),
+      )
     }
   }
 
@@ -69,10 +85,15 @@ export function SettingsPanel() {
       setPollReport(report)
       await loadStatus()
       if (report.verified_now) {
-        setInfo('Верификация подтверждена. Теперь можно запускать прием сообщений Telegram.')
+        setInfo(
+          t(
+            'Верификация подтверждена. Теперь можно запускать прием сообщений Telegram.',
+            'Verification confirmed. You can start Telegram listener now.',
+          ),
+        )
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось опросить обновления Telegram')
+      setError(err instanceof Error ? err.message : t('Не удалось опросить обновления Telegram', 'Failed to poll Telegram updates'))
     }
   }
 
@@ -82,9 +103,13 @@ export function SettingsPanel() {
     try {
       const result = await api.telegramListenerStart()
       setStatus(result)
-      setInfo('Прием сообщений Telegram запущен.')
+      setInfo(t('Прием сообщений Telegram запущен.', 'Telegram listener started.'))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось запустить прием сообщений Telegram')
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('Не удалось запустить прием сообщений Telegram', 'Failed to start Telegram listener'),
+      )
     }
   }
 
@@ -94,19 +119,43 @@ export function SettingsPanel() {
     try {
       const result = await api.telegramListenerStop()
       setStatus(result)
-      setInfo('Прием сообщений Telegram остановлен.')
+      setInfo(t('Прием сообщений Telegram остановлен.', 'Telegram listener stopped.'))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось остановить прием сообщений Telegram')
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('Не удалось остановить прием сообщений Telegram', 'Failed to stop Telegram listener'),
+      )
     }
   }
 
   return (
     <div className="space-y-4">
       <Card>
-        <h3 className="mb-3 text-lg font-semibold">Настройки Telegram</h3>
+        <h3 className="mb-2 text-lg font-semibold">{t('Язык интерфейса', 'Interface language')}</h3>
+        <p className="text-sm text-[var(--muted-foreground)]">
+          {t(
+            'Смена языка применяется сразу и сохраняется локально.',
+            'Language change applies instantly and is stored locally.',
+          )}
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button variant={locale === 'ru' ? 'default' : 'outline'} onClick={() => setLocale('ru')}>
+            Русский
+          </Button>
+          <Button variant={locale === 'en' ? 'default' : 'outline'} onClick={() => setLocale('en')}>
+            English
+          </Button>
+        </div>
+      </Card>
+
+      <Card>
+        <h3 className="mb-3 text-lg font-semibold">{t('Настройки Telegram', 'Telegram Settings')}</h3>
         <div className="grid gap-2 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs text-[var(--muted-foreground)]">Токен бота</label>
+            <label className="mb-1 block text-xs text-[var(--muted-foreground)]">
+              {t('Токен бота', 'Bot token')}
+            </label>
             <input
               className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-sm"
               value={botToken}
@@ -115,27 +164,29 @@ export function SettingsPanel() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-[var(--muted-foreground)]">Имя пользователя Telegram</label>
+            <label className="mb-1 block text-xs text-[var(--muted-foreground)]">
+              {t('Имя пользователя Telegram', 'Telegram username')}
+            </label>
             <input
               className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-sm"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
-              placeholder="@ваш_username"
+              placeholder={t('@ваш_username', '@your_username')}
             />
           </div>
         </div>
 
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button onClick={() => void saveConfig()}>Сохранить конфиг</Button>
+          <Button onClick={() => void saveConfig()}>{t('Сохранить конфиг', 'Save config')}</Button>
           <Button variant="outline" onClick={() => void beginVerification()}>
-            Сгенерировать код верификации
+            {t('Сгенерировать код верификации', 'Generate verification code')}
           </Button>
           <Button variant="outline" onClick={() => void pollOnce()}>
-            Проверить сейчас
+            {t('Проверить сейчас', 'Poll now')}
           </Button>
-          <Button onClick={() => void startListener()}>Запустить прием</Button>
+          <Button onClick={() => void startListener()}>{t('Запустить прием', 'Start listener')}</Button>
           <Button variant="danger" onClick={() => void stopListener()}>
-            Остановить прием
+            {t('Остановить прием', 'Stop listener')}
           </Button>
         </div>
 
@@ -145,36 +196,51 @@ export function SettingsPanel() {
 
       <Card>
         <h4 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-          Текущий статус Telegram
+          {t('Текущий статус Telegram', 'Telegram runtime status')}
         </h4>
 
         {status ? (
           <div className="space-y-2 text-sm">
             <div className="flex flex-wrap gap-2">
-              <Badge>Настроено: {status.configured ? 'да' : 'нет'}</Badge>
-              <Badge>Верифицировано: {status.verified ? 'да' : 'нет'}</Badge>
-              <Badge>Запущено: {status.running ? 'да' : 'нет'}</Badge>
+              <Badge>
+                {t('Настроено', 'Configured')}: {status.configured ? t('да', 'yes') : t('нет', 'no')}
+              </Badge>
+              <Badge>
+                {t('Верифицировано', 'Verified')}: {status.verified ? t('да', 'yes') : t('нет', 'no')}
+              </Badge>
+              <Badge>
+                {t('Запущено', 'Running')}: {status.running ? t('да', 'yes') : t('нет', 'no')}
+              </Badge>
             </div>
-            <p>Имя пользователя: {status.username ?? '-'}</p>
+            <p>
+              {t('Имя пользователя', 'Username')}: {status.username ?? '-'}
+            </p>
             <p>Chat ID: {status.chat_id ?? '-'}</p>
-            <p>Последний опрос: {status.last_poll_at ? new Date(status.last_poll_at).toLocaleString() : '-'}</p>
-            <p>Последняя ошибка: {status.last_error ?? '-'}</p>
+            <p>
+              {t('Последний опрос', 'Last poll')}:{' '}
+              {status.last_poll_at ? new Date(status.last_poll_at).toLocaleString() : '-'}
+            </p>
+            <p>
+              {t('Последняя ошибка', 'Last error')}: {status.last_error ?? '-'}
+            </p>
           </div>
         ) : (
-          <p className="text-sm text-[var(--muted-foreground)]">Статус пока не получен.</p>
+          <p className="text-sm text-[var(--muted-foreground)]">
+            {t('Статус пока не получен.', 'No status yet.')}
+          </p>
         )}
       </Card>
 
       {verification ? (
         <Card>
           <h4 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-            Одноразовый код верификации
+            {t('Одноразовый код верификации', 'One-time verification code')}
           </h4>
           <p className="rounded-md border border-[var(--border)] bg-[var(--muted)] px-3 py-2 font-mono text-sm">
             {verification.code}
           </p>
           <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-            Действует до: {new Date(verification.expires_at).toLocaleString()}
+            {t('Действует до', 'Expires at')}: {new Date(verification.expires_at).toLocaleString()}
           </p>
         </Card>
       ) : null}
@@ -182,13 +248,22 @@ export function SettingsPanel() {
       {pollReport ? (
         <Card>
           <h4 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-            Отчет последнего опроса
+            {t('Отчет последнего опроса', 'Last poll report')}
           </h4>
           <div className="space-y-1 text-sm">
-            <p>Получено обновлений: {pollReport.fetched}</p>
-            <p>Принято: {pollReport.accepted}</p>
-            <p>Отклонено: {pollReport.rejected}</p>
-            <p>Подтверждено сейчас: {pollReport.verified_now ? 'да' : 'нет'}</p>
+            <p>
+              {t('Получено обновлений', 'Fetched updates')}: {pollReport.fetched}
+            </p>
+            <p>
+              {t('Принято', 'Accepted')}: {pollReport.accepted}
+            </p>
+            <p>
+              {t('Отклонено', 'Rejected')}: {pollReport.rejected}
+            </p>
+            <p>
+              {t('Подтверждено сейчас', 'Verified now')}:{' '}
+              {pollReport.verified_now ? t('да', 'yes') : t('нет', 'no')}
+            </p>
           </div>
         </Card>
       ) : null}

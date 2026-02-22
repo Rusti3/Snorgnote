@@ -4,9 +4,11 @@ import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { api } from '../lib/api'
+import { useLocale } from '../lib/locale'
 import type { ProjectState, SkillRecord } from '../types/api'
 
 export function ProjectsPanel() {
+  const { t } = useLocale()
   const [projects, setProjects] = useState<ProjectState[]>([])
   const [skills, setSkills] = useState<SkillRecord[]>([])
   const [skillToRun, setSkillToRun] = useState('')
@@ -27,9 +29,9 @@ export function ProjectsPanel() {
         return skillsResult[0].slug
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось загрузить проекты')
+      setError(err instanceof Error ? err.message : t('Не удалось загрузить проекты', 'Failed to load projects'))
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     void loadAll()
@@ -42,18 +44,21 @@ export function ProjectsPanel() {
     try {
       const result = await api.skillsRun(skillToRun)
       setStatus(
-        `Навык ${skillToRun} выполнен. Задач: ${result.report.processed}, успешно: ${result.report.succeeded}`,
+        t(
+          `Навык ${skillToRun} выполнен. Задач: ${result.report.processed}, успешно: ${result.report.succeeded}`,
+          `Skill ${skillToRun} executed. Jobs: ${result.report.processed}, success: ${result.report.succeeded}`,
+        ),
       )
       await loadAll()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось запустить навык')
+      setError(err instanceof Error ? err.message : t('Не удалось запустить навык', 'Skill run failed'))
     }
   }
 
   return (
     <div className="space-y-4">
       <Card>
-        <h3 className="mb-3 text-lg font-semibold">Проекты / Подмиры</h3>
+        <h3 className="mb-3 text-lg font-semibold">{t('Проекты / Подмиры', 'Projects / Sub-worlds')}</h3>
         <div className="flex flex-wrap items-center gap-2">
           <select
             className="h-9 rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-sm"
@@ -67,10 +72,10 @@ export function ProjectsPanel() {
             ))}
           </select>
           <Button onClick={() => void runSkill()} disabled={!skillToRun}>
-            Запустить навык
+            {t('Запустить навык', 'Run Skill')}
           </Button>
           <Button variant="outline" onClick={() => void loadAll()}>
-            Обновить
+            {t('Обновить', 'Refresh')}
           </Button>
         </div>
         {status ? <p className="mt-2 text-sm text-[var(--success)]">{status}</p> : null}
@@ -85,11 +90,11 @@ export function ProjectsPanel() {
               <Badge>{project.biome_type}</Badge>
             </div>
             <div className="space-y-1 text-sm">
-              <p>Уровень: {project.level}</p>
+              <p>{t('Уровень', 'Level')}: {project.level}</p>
               <p>XP: {project.xp}</p>
-              <p>Здоровье: {project.health.toFixed(1)}</p>
-              <p>Открытые задачи: {project.open_tasks}</p>
-              <p>Сделано сегодня: {project.done_today}</p>
+              <p>{t('Здоровье', 'Health')}: {project.health.toFixed(1)}</p>
+              <p>{t('Открытые задачи', 'Open tasks')}: {project.open_tasks}</p>
+              <p>{t('Сделано сегодня', 'Done today')}: {project.done_today}</p>
             </div>
           </Card>
         ))}

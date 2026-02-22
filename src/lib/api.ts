@@ -123,7 +123,7 @@ export const api = {
 
   async vaultSaveNote(path: string, bodyMd: string): Promise<NoteDocument> {
     if (hasTauriRuntime()) {
-      return tauriInvoke('vault_save_note', { path, body_md: bodyMd })
+      return tauriInvoke('vault_save_note', { path, bodyMd })
     }
 
     const title = bodyMd
@@ -157,9 +157,9 @@ export const api = {
     if (hasTauriRuntime()) {
       return tauriInvoke('inbox_add_item', {
         source,
-        content_text: contentText,
+        contentText,
         tags,
-        project_hint: projectHint,
+        projectHint,
       })
     }
 
@@ -262,7 +262,7 @@ export const api = {
 
   async focusStart(projectId?: string, taskId?: string): Promise<FocusSessionView> {
     if (hasTauriRuntime()) {
-      return tauriInvoke('focus_start', { project_id: projectId, task_id: taskId })
+      return tauriInvoke('focus_start', { projectId, taskId })
     }
     const session: FocusSessionView = {
       id: crypto.randomUUID(),
@@ -333,7 +333,7 @@ export const api = {
 
   async telegramSetConfig(botToken: string, username: string): Promise<TelegramStatus> {
     if (hasTauriRuntime()) {
-      return tauriInvoke('telegram_set_config', { bot_token: botToken, username })
+      return tauriInvoke('telegram_set_config', { botToken, username })
     }
 
     mockState.telegram.botToken = botToken.trim()

@@ -8,6 +8,18 @@ import type { InboxItemView } from '../types/api'
 
 type LoadState = 'idle' | 'loading' | 'error'
 
+const sourceLabels: Record<string, string> = {
+  quick_note: 'быстрая заметка',
+  telegram: 'telegram',
+  browser: 'браузер',
+  email: 'почта',
+}
+
+const statusLabels: Record<string, string> = {
+  new: 'новый',
+  processed: 'обработан',
+}
+
 export function InboxPanel() {
   const [source, setSource] = useState('quick_note')
   const [content, setContent] = useState('')
@@ -29,7 +41,7 @@ export function InboxPanel() {
       setItems(result)
       setState('idle')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load inbox')
+      setError(err instanceof Error ? err.message : 'Не удалось загрузить входящие')
       setState('error')
     }
   }
@@ -54,7 +66,7 @@ export function InboxPanel() {
       setContent('')
       await loadInbox()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save inbox item')
+      setError(err instanceof Error ? err.message : 'Не удалось сохранить элемент во входящие')
       setState('error')
     }
   }
@@ -66,7 +78,7 @@ export function InboxPanel() {
       await api.inboxProcess(20)
       await loadInbox()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to process inbox')
+      setError(err instanceof Error ? err.message : 'Не удалось обработать входящие')
       setState('error')
     }
   }
@@ -75,8 +87,8 @@ export function InboxPanel() {
     <div className="space-y-4">
       <Card>
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Capture / Inbox</h3>
-          <Badge>{newCount} new</Badge>
+          <h3 className="text-lg font-semibold">Захват / Входящие</h3>
+          <Badge>{newCount} новых</Badge>
         </div>
         <div className="grid gap-2 md:grid-cols-[180px_1fr]">
           <select
@@ -84,41 +96,41 @@ export function InboxPanel() {
             value={source}
             onChange={(event) => setSource(event.target.value)}
           >
-            <option value="quick_note">quick_note</option>
+            <option value="quick_note">быстрая заметка</option>
             <option value="telegram">telegram</option>
-            <option value="browser">browser</option>
-            <option value="email">email</option>
+            <option value="browser">браузер</option>
+            <option value="email">почта</option>
           </select>
           <input
             className="h-10 rounded-md border border-[var(--border)] bg-[var(--background)] px-3"
-            placeholder="tags, comma separated"
+            placeholder="теги, через запятую"
             value={tags}
             onChange={(event) => setTags(event.target.value)}
           />
         </div>
         <textarea
           className="mt-2 min-h-28 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2"
-          placeholder="Drop raw capture here..."
+          placeholder="Добавьте сырой материал сюда..."
           value={content}
           onChange={(event) => setContent(event.target.value)}
         />
         <div className="mt-3 flex gap-2">
           <Button onClick={() => void onCapture()} disabled={state === 'loading'}>
-            Save to Inbox
+            Сохранить во входящие
           </Button>
           <Button
             variant="outline"
             onClick={() => void onProcess()}
             disabled={state === 'loading'}
           >
-            Process Queue
+            Обработать очередь
           </Button>
           <Button
             variant="ghost"
             onClick={() => void loadInbox()}
             disabled={state === 'loading'}
           >
-            Refresh
+            Обновить
           </Button>
         </div>
         {error ? <p className="mt-2 text-sm text-[var(--danger)]">{error}</p> : null}
@@ -126,11 +138,11 @@ export function InboxPanel() {
 
       <Card>
         <h4 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-          Inbox Items
+          Элементы входящих
         </h4>
         <div className="space-y-2">
           {items.length === 0 ? (
-            <p className="text-sm text-[var(--muted-foreground)]">Inbox is empty.</p>
+            <p className="text-sm text-[var(--muted-foreground)]">Входящие пусты.</p>
           ) : (
             items.map((item) => (
               <div
@@ -139,8 +151,8 @@ export function InboxPanel() {
               >
                 <div className="mb-1 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <Badge>{item.source}</Badge>
-                    <Badge>{item.status}</Badge>
+                    <Badge>{sourceLabels[item.source] ?? item.source}</Badge>
+                    <Badge>{statusLabels[item.status] ?? item.status}</Badge>
                   </div>
                   <span className="text-xs text-[var(--muted-foreground)]">
                     {new Date(item.created_at).toLocaleString()}

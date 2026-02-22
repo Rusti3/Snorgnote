@@ -15,13 +15,13 @@ import { api } from './lib/api'
 type TabId = 'inbox' | 'notes' | 'planning' | 'projects' | 'focus' | 'stats' | 'settings'
 
 const tabs: Array<{ id: TabId; label: string; icon: typeof Inbox }> = [
-  { id: 'inbox', label: 'Inbox', icon: Inbox },
-  { id: 'notes', label: 'Notes', icon: ScrollText },
-  { id: 'planning', label: 'Daily/Weekly', icon: CalendarDays },
-  { id: 'projects', label: 'Projects', icon: FolderKanban },
-  { id: 'focus', label: 'Focus', icon: Clock4 },
-  { id: 'stats', label: 'Stats', icon: Brain },
-  { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'inbox', label: 'Входящие', icon: Inbox },
+  { id: 'notes', label: 'Заметки', icon: ScrollText },
+  { id: 'planning', label: 'День/Неделя', icon: CalendarDays },
+  { id: 'projects', label: 'Проекты', icon: FolderKanban },
+  { id: 'focus', label: 'Фокус', icon: Clock4 },
+  { id: 'stats', label: 'Статистика', icon: Brain },
+  { id: 'settings', label: 'Настройки', icon: Settings },
 ]
 
 export default function App() {
@@ -39,7 +39,7 @@ export default function App() {
             <div className="bg-[var(--surface-gradient)] p-4">
               <h1 className="font-display text-2xl font-semibold">Snorgnote</h1>
               <p className="text-sm text-[var(--muted-foreground)]">
-                {'Capture -> Process -> Organize -> Act -> Measure -> Level up'}
+                {'Собрать -> Обработать -> Организовать -> Действовать -> Измерить -> Прокачаться'}
               </p>
             </div>
             <div className="space-y-1 p-2">
@@ -65,9 +65,9 @@ export default function App() {
 
           <Card>
             <p className="mb-1 text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
-              Runtime
+              Режим
             </p>
-            <Badge>{api.isTauri() ? 'Tauri native mode' : 'Web mock mode'}</Badge>
+            <Badge>{api.isTauri() ? 'Tauri (нативный)' : 'Веб (мок)'}</Badge>
           </Card>
         </aside>
 
@@ -75,7 +75,7 @@ export default function App() {
           <Card>
             <h2 className="font-display text-2xl font-semibold">{title}</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
-              v0.1.1 with Telegram username capture. Local-first vault, job pipeline, skills, planning, focus and metrics.
+              v0.1.4: русская локализация интерфейса, локальный vault, конвейер задач, навыки, планирование, фокус и метрики.
             </p>
           </Card>
 

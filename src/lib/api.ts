@@ -36,7 +36,7 @@ const mockState = {
     {
       id: 'project_general',
       slug: 'general',
-      name: 'General',
+      name: 'Общий',
       biome_type: 'mainland',
       health: 50,
       xp: 0,
@@ -87,10 +87,10 @@ function extractInvokeErrorMessage(error: unknown): string {
     try {
       return JSON.stringify(error)
     } catch {
-      return 'unknown invoke error'
+      return 'неизвестная ошибка вызова'
     }
   }
-  return 'unknown invoke error'
+  return 'неизвестная ошибка вызова'
 }
 
 export const api = {
@@ -118,7 +118,7 @@ export const api = {
 
     const found = mockState.notes.find((note) => note.path === path)
     if (found) return found
-    throw new Error(`Note not found: ${path}`)
+    throw new Error(`Заметка не найдена: ${path}`)
   },
 
   async vaultSaveNote(path: string, bodyMd: string): Promise<NoteDocument> {
@@ -132,7 +132,7 @@ export const api = {
       ?.replace(/^#\s+/, '')
       ?.trim()
       || path.replace(/\.md$/i, '').split('/').pop()
-      || 'Untitled'
+      || 'Без названия'
 
     const doc: NoteDocument = {
       id: crypto.randomUUID(),
@@ -215,7 +215,7 @@ export const api = {
     return {
       valid: hasJobs,
       parsed_id: yaml.match(/id:\s*([^\n]+)/)?.[1]?.trim(),
-      errors: hasJobs ? [] : ['at least one job must be defined'],
+      errors: hasJobs ? [] : ['нужно определить хотя бы одну job'],
       warnings: [],
     }
   },
@@ -239,11 +239,11 @@ export const api = {
       date: today(),
       path: `Daily/${today()}.md`,
       suggestions: [
-        'Important: Ship one meaningful artifact',
-        'Light: Clean one inbox cluster',
-        'Recovery: 20-minute walk',
+        'Важное: Сделать один значимый результат',
+        'Легкое: Разобрать один кластер входящих',
+        'Восстановление: 20-минутная прогулка',
       ],
-      markdown: '# Daily\n\n- [ ] Important task',
+      markdown: '# День\n\n- [ ] Важная задача',
     }
   },
 
@@ -255,8 +255,8 @@ export const api = {
     return {
       week,
       path: `Weekly/${week}.md`,
-      highlights: ['Completed tasks: 0', 'Focus minutes: 0'],
-      markdown: '# Weekly\n',
+      highlights: ['Выполнено задач: 0', 'Минут фокуса: 0'],
+      markdown: '# Неделя\n',
     }
   },
 
@@ -279,7 +279,7 @@ export const api = {
       return tauriInvoke('focus_stop')
     }
     if (!mockState.focusActive) {
-      throw new Error('No active focus session')
+      throw new Error('Нет активной фокус-сессии')
     }
     const startedAt = new Date(mockState.focusActive.started_at).getTime()
     const durationSec = Math.floor((Date.now() - startedAt) / 1000)
@@ -360,7 +360,7 @@ export const api = {
       return tauriInvoke('telegram_begin_verification')
     }
     if (!mockState.telegram.botToken || !mockState.telegram.username) {
-      throw new Error('Telegram is not configured')
+      throw new Error('Telegram не настроен')
     }
 
     const code = `SNORG-${crypto.randomUUID().replace(/-/g, '').slice(0, 6).toUpperCase()}`
@@ -377,7 +377,7 @@ export const api = {
 
     mockState.telegram.lastPollAt = now()
     if (!mockState.telegram.botToken || !mockState.telegram.username) {
-      mockState.telegram.lastError = 'Telegram is not configured'
+      mockState.telegram.lastError = 'Telegram не настроен'
       throw new Error(mockState.telegram.lastError)
     }
 
@@ -398,7 +398,7 @@ export const api = {
       return tauriInvoke('telegram_listener_start')
     }
     if (!mockState.telegram.verified) {
-      throw new Error('Telegram is not verified')
+      throw new Error('Telegram не верифицирован')
     }
     mockState.telegram.running = true
     return {

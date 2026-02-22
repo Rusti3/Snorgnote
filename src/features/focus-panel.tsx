@@ -18,7 +18,7 @@ export function FocusPanel() {
       const session = await api.focusStart(projectId || undefined, undefined)
       setActive(session)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to start focus')
+      setError(err instanceof Error ? err.message : 'Не удалось начать фокус')
     }
   }
 
@@ -30,10 +30,10 @@ export function FocusPanel() {
       const newStats = await api.focusStats(7)
       setStats(newStats)
       if (session.duration_sec) {
-        setError(`Session finished: ${Math.floor(session.duration_sec / 60)} min`)
+        setError(`Сессия завершена: ${Math.floor(session.duration_sec / 60)} мин`)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to stop focus')
+      setError(err instanceof Error ? err.message : 'Не удалось остановить фокус')
     }
   }
 
@@ -43,14 +43,14 @@ export function FocusPanel() {
       const next = await api.focusStats(7)
       setStats(next)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load focus stats')
+      setError(err instanceof Error ? err.message : 'Не удалось загрузить статистику фокуса')
     }
   }
 
   return (
     <div className="space-y-4">
       <Card>
-        <h3 className="mb-3 text-lg font-semibold">Pomodoro / Focus</h3>
+        <h3 className="mb-3 text-lg font-semibold">Помодоро / Фокус</h3>
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <input
             className="h-9 rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-sm"
@@ -59,25 +59,25 @@ export function FocusPanel() {
             placeholder="project_general"
           />
           <Button onClick={() => void startFocus()} disabled={Boolean(active)}>
-            Start
+            Старт
           </Button>
           <Button variant="danger" onClick={() => void stopFocus()} disabled={!active}>
-            Stop
+            Стоп
           </Button>
           <Button variant="outline" onClick={() => void refreshStats()}>
-            Refresh Stats
+            Обновить статистику
           </Button>
         </div>
 
         {active ? (
           <div className="rounded-md border border-[var(--border)] bg-[var(--muted)]/40 p-3">
-            <p className="text-sm font-medium">Active session</p>
+            <p className="text-sm font-medium">Активная сессия</p>
             <p className="text-xs text-[var(--muted-foreground)]">
-              started at {new Date(active.started_at).toLocaleTimeString()}
+              начата в {new Date(active.started_at).toLocaleTimeString()}
             </p>
           </div>
         ) : (
-          <p className="text-sm text-[var(--muted-foreground)]">No active focus session.</p>
+          <p className="text-sm text-[var(--muted-foreground)]">Нет активной фокус-сессии.</p>
         )}
 
         {error ? <p className="mt-2 text-sm text-[var(--danger)]">{error}</p> : null}
@@ -85,25 +85,25 @@ export function FocusPanel() {
 
       <Card>
         <h4 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-          Last 7 Days
+          Последние 7 дней
         </h4>
         {stats ? (
           <div className="space-y-2">
             <div className="flex flex-wrap gap-2">
-              <Badge>Sessions: {stats.sessions}</Badge>
-              <Badge>Total minutes: {stats.total_minutes}</Badge>
+              <Badge>Сессии: {stats.sessions}</Badge>
+              <Badge>Всего минут: {stats.total_minutes}</Badge>
             </div>
             <div className="space-y-1 text-sm">
               {stats.by_project.map((row) => (
                 <p key={row.project_id}>
-                  {row.project_id}: {row.minutes} min
+                  {row.project_id}: {row.minutes} мин
                 </p>
               ))}
             </div>
           </div>
         ) : (
           <p className="text-sm text-[var(--muted-foreground)]">
-            Press &quot;Refresh Stats&quot; to load history.
+            Нажмите &quot;Обновить статистику&quot;, чтобы загрузить историю.
           </p>
         )}
       </Card>

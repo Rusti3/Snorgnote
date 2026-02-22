@@ -29,7 +29,7 @@ export function NotesPanel() {
         return result[0].path
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load notes')
+      setError(err instanceof Error ? err.message : 'Не удалось загрузить заметки')
     }
   }, [])
 
@@ -45,7 +45,7 @@ export function NotesPanel() {
         const doc = await api.vaultGetNote(selectedPath)
         setEditor(doc.body_md)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to open note')
+        setError(err instanceof Error ? err.message : 'Не удалось открыть заметку')
       }
     })()
   }, [selectedPath])
@@ -56,10 +56,10 @@ export function NotesPanel() {
     try {
       const saved: NoteDocument = await api.vaultSaveNote(path.trim(), editor)
       setSelectedPath(saved.path)
-      setStatus(`Saved ${saved.path}`)
+      setStatus(`Сохранено: ${saved.path}`)
       await loadNotes()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save note')
+      setError(err instanceof Error ? err.message : 'Не удалось сохранить заметку')
     }
   }
 
@@ -67,12 +67,12 @@ export function NotesPanel() {
     <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
       <Card className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Vault Notes</h3>
+          <h3 className="text-lg font-semibold">Заметки Vault</h3>
           <Badge>{notes.length}</Badge>
         </div>
         <div className="rounded-md border border-[var(--border)] p-2">
           <label className="mb-1 block text-xs text-[var(--muted-foreground)]">
-            Create / Save As Path
+            Путь для создания / Сохранить как
           </label>
           <input
             className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-sm"
@@ -84,7 +84,7 @@ export function NotesPanel() {
             variant="outline"
             onClick={() => void onSave(newPath)}
           >
-            Save As New Note
+            Сохранить как новую
           </Button>
         </div>
 
@@ -110,19 +110,19 @@ export function NotesPanel() {
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold">
-              {selectedSummary?.title ?? 'Markdown Editor'}
+              {selectedSummary?.title ?? 'Markdown-редактор'}
             </h3>
             <p className="text-xs text-[var(--muted-foreground)]">
-              {selectedPath || 'Select a note or create one'}
+              {selectedPath || 'Выберите заметку или создайте новую'}
             </p>
           </div>
           <Button onClick={() => void onSave()} disabled={!selectedPath && !newPath}>
-            Save
+            Сохранить
           </Button>
         </div>
         <textarea
           className="min-h-[65vh] w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-2 font-mono text-sm"
-          placeholder="# Note title"
+          placeholder="# Заголовок заметки"
           value={editor}
           onChange={(event) => setEditor(event.target.value)}
         />

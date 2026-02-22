@@ -27,7 +27,7 @@ export function ProjectsPanel() {
         return skillsResult[0].slug
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load projects')
+      setError(err instanceof Error ? err.message : 'Не удалось загрузить проекты')
     }
   }, [])
 
@@ -42,18 +42,18 @@ export function ProjectsPanel() {
     try {
       const result = await api.skillsRun(skillToRun)
       setStatus(
-        `Skill ${skillToRun} executed. Jobs: ${result.report.processed}, success: ${result.report.succeeded}`,
+        `Навык ${skillToRun} выполнен. Задач: ${result.report.processed}, успешно: ${result.report.succeeded}`,
       )
       await loadAll()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Skill run failed')
+      setError(err instanceof Error ? err.message : 'Не удалось запустить навык')
     }
   }
 
   return (
     <div className="space-y-4">
       <Card>
-        <h3 className="mb-3 text-lg font-semibold">Projects / Sub-worlds</h3>
+        <h3 className="mb-3 text-lg font-semibold">Проекты / Подмиры</h3>
         <div className="flex flex-wrap items-center gap-2">
           <select
             className="h-9 rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-sm"
@@ -67,10 +67,10 @@ export function ProjectsPanel() {
             ))}
           </select>
           <Button onClick={() => void runSkill()} disabled={!skillToRun}>
-            Run Skill
+            Запустить навык
           </Button>
           <Button variant="outline" onClick={() => void loadAll()}>
-            Refresh
+            Обновить
           </Button>
         </div>
         {status ? <p className="mt-2 text-sm text-[var(--success)]">{status}</p> : null}
@@ -85,11 +85,11 @@ export function ProjectsPanel() {
               <Badge>{project.biome_type}</Badge>
             </div>
             <div className="space-y-1 text-sm">
-              <p>Level: {project.level}</p>
+              <p>Уровень: {project.level}</p>
               <p>XP: {project.xp}</p>
-              <p>Health: {project.health.toFixed(1)}</p>
-              <p>Open tasks: {project.open_tasks}</p>
-              <p>Done today: {project.done_today}</p>
+              <p>Здоровье: {project.health.toFixed(1)}</p>
+              <p>Открытые задачи: {project.open_tasks}</p>
+              <p>Сделано сегодня: {project.done_today}</p>
             </div>
           </Card>
         ))}

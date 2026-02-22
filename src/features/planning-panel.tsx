@@ -18,7 +18,7 @@ export function PlanningPanel() {
       const result = await api.plannerGenerateDaily()
       setDaily(result)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Daily generation failed')
+      setError(err instanceof Error ? err.message : 'Не удалось сгенерировать план на день')
     } finally {
       setLoading(false)
     }
@@ -31,7 +31,7 @@ export function PlanningPanel() {
       const result = await api.plannerGenerateWeekly()
       setWeekly(result)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Weekly generation failed')
+      setError(err instanceof Error ? err.message : 'Не удалось сгенерировать план на неделю')
     } finally {
       setLoading(false)
     }
@@ -40,13 +40,13 @@ export function PlanningPanel() {
   return (
     <div className="space-y-4">
       <Card>
-        <h3 className="mb-3 text-lg font-semibold">Planning Engine</h3>
+        <h3 className="mb-3 text-lg font-semibold">Планировщик</h3>
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => void generateDaily()} disabled={loading}>
-            Generate Daily
+            Сгенерировать день
           </Button>
           <Button variant="outline" onClick={() => void generateWeekly()} disabled={loading}>
-            Generate Weekly
+            Сгенерировать неделю
           </Button>
         </div>
         {error ? <p className="mt-2 text-sm text-[var(--danger)]">{error}</p> : null}
@@ -55,7 +55,7 @@ export function PlanningPanel() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <h4 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-            Daily
+            День
           </h4>
           {daily ? (
             <>
@@ -71,14 +71,14 @@ export function PlanningPanel() {
             </>
           ) : (
             <p className="text-sm text-[var(--muted-foreground)]">
-              No daily plan generated yet.
+              План на день пока не создан.
             </p>
           )}
         </Card>
 
         <Card>
           <h4 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-            Weekly
+            Неделя
           </h4>
           {weekly ? (
             <>
@@ -94,7 +94,7 @@ export function PlanningPanel() {
             </>
           ) : (
             <p className="text-sm text-[var(--muted-foreground)]">
-              No weekly plan generated yet.
+              План на неделю пока не создан.
             </p>
           )}
         </Card>

@@ -65,11 +65,6 @@ impl AppState {
             bail!("telegram bot token cannot be empty");
         }
 
-        let client = TelegramBotApiClient::new(&token)?;
-        let _ = client
-            .get_me()
-            .context("failed to validate bot token with Telegram API")?;
-
         self.stop_telegram_listener_runtime();
 
         let conn = self.conn()?;

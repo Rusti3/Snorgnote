@@ -61,7 +61,36 @@ const mockState = {
 }
 
 async function tauriInvoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
-  return invoke<T>(command, args)
+  try {
+    return await invoke<T>(command, args)
+  } catch (error) {
+    throw new Error(extractInvokeErrorMessage(error))
+  }
+}
+
+function extractInvokeErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message
+  }
+  if (typeof error === 'string' && error.trim()) {
+    return error
+  }
+  if (error && typeof error === 'object') {
+    const record = error as Record<string, unknown>
+    const candidates = ['message', 'error', 'reason', 'details']
+    for (const key of candidates) {
+      const value = record[key]
+      if (typeof value === 'string' && value.trim()) {
+        return value
+      }
+    }
+    try {
+      return JSON.stringify(error)
+    } catch {
+      return 'unknown invoke error'
+    }
+  }
+  return 'unknown invoke error'
 }
 
 export const api = {

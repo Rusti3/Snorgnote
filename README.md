@@ -12,7 +12,7 @@
 
 ## Статус
 
-Текущая версия: `v0.1.0` (foundation).
+Текущая версия: `v0.1.1`.
 
 Реализовано:
 
@@ -49,3 +49,11 @@ npm run dev
 - Добавлен UI-каркас с панелями: Inbox, Notes, Daily/Weekly, Projects, Focus, Stats.
 - Добавлены начальные встроенные skills: `daily_planner`, `spaced_review`, `mood_money_events_summary`.
 - Подготовлены docs и roadmap для дальнейшего расширения.
+
+### v0.1.1
+
+- Добавлена рабочая Telegram-интеграция для сценария `1 user + 1 bot` по `username`.
+- Реализованы настройки Telegram в UI: `bot token`, `username`, генерация one-time кода, `Poll Now`, `Start/Stop listener`.
+- Реализована верификация через код из лички боту и фильтрация только личных сообщений нужного username.
+- Добавлен long polling listener в Rust core и запись принятых сообщений из Telegram в `Inbox`.
+- Добавлена миграция `002_telegram.sql` и новые типы/команды для Telegram статуса и управления.

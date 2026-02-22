@@ -37,6 +37,12 @@ pub fn run() {
             commands::focus_stats,
             commands::dashboard_get_overview,
             commands::projects_get_state,
+            commands::telegram_set_config,
+            commands::telegram_begin_verification,
+            commands::telegram_poll_once,
+            commands::telegram_listener_start,
+            commands::telegram_listener_stop,
+            commands::telegram_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

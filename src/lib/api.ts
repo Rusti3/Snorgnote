@@ -13,6 +13,9 @@ import type {
   SkillRecord,
   SkillRunResult,
   SkillValidation,
+  TelegramPollReport,
+  TelegramStatus,
+  TelegramVerificationCode,
   WeeklyPlan,
 } from '../types/api'
 
@@ -44,6 +47,17 @@ const mockState = {
   ] as ProjectState[],
   focusActive: null as FocusSessionView | null,
   focusHistory: [] as FocusSessionView[],
+  telegram: {
+    botToken: '',
+    username: '',
+    verified: false,
+    running: false,
+    pendingCode: '',
+    pendingExpiresAt: '',
+    chatId: '',
+    lastPollAt: '',
+    lastError: '',
+  },
 }
 
 async function tauriInvoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
@@ -286,5 +300,117 @@ export const api = {
       return tauriInvoke('projects_get_state')
     }
     return mockState.projects
+  },
+
+  async telegramSetConfig(botToken: string, username: string): Promise<TelegramStatus> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('telegram_set_config', { bot_token: botToken, username })
+    }
+
+    mockState.telegram.botToken = botToken.trim()
+    mockState.telegram.username = username.trim().replace(/^@+/, '').toLowerCase()
+    mockState.telegram.verified = false
+    mockState.telegram.running = false
+    mockState.telegram.pendingCode = ''
+    mockState.telegram.pendingExpiresAt = ''
+    mockState.telegram.chatId = ''
+    mockState.telegram.lastError = ''
+    return {
+      configured: Boolean(mockState.telegram.botToken && mockState.telegram.username),
+      verified: mockState.telegram.verified,
+      running: mockState.telegram.running,
+      username: mockState.telegram.username || undefined,
+      chat_id: mockState.telegram.chatId || undefined,
+      last_poll_at: mockState.telegram.lastPollAt || undefined,
+      last_error: undefined,
+    }
+  },
+
+  async telegramBeginVerification(): Promise<TelegramVerificationCode> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('telegram_begin_verification')
+    }
+    if (!mockState.telegram.botToken || !mockState.telegram.username) {
+      throw new Error('Telegram is not configured')
+    }
+
+    const code = `SNORG-${crypto.randomUUID().replace(/-/g, '').slice(0, 6).toUpperCase()}`
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+    mockState.telegram.pendingCode = code
+    mockState.telegram.pendingExpiresAt = expiresAt
+    return { code, expires_at: expiresAt }
+  },
+
+  async telegramPollOnce(): Promise<TelegramPollReport> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('telegram_poll_once')
+    }
+
+    mockState.telegram.lastPollAt = now()
+    if (!mockState.telegram.botToken || !mockState.telegram.username) {
+      mockState.telegram.lastError = 'Telegram is not configured'
+      throw new Error(mockState.telegram.lastError)
+    }
+
+    if (!mockState.telegram.verified && mockState.telegram.pendingCode) {
+      mockState.telegram.verified = true
+      mockState.telegram.chatId = 'mock_private_chat'
+      mockState.telegram.pendingCode = ''
+      mockState.telegram.pendingExpiresAt = ''
+      mockState.telegram.lastError = ''
+      return { fetched: 1, accepted: 1, rejected: 0, verified_now: true }
+    }
+
+    return { fetched: 0, accepted: 0, rejected: 0, verified_now: false }
+  },
+
+  async telegramListenerStart(): Promise<TelegramStatus> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('telegram_listener_start')
+    }
+    if (!mockState.telegram.verified) {
+      throw new Error('Telegram is not verified')
+    }
+    mockState.telegram.running = true
+    return {
+      configured: Boolean(mockState.telegram.botToken && mockState.telegram.username),
+      verified: mockState.telegram.verified,
+      running: mockState.telegram.running,
+      username: mockState.telegram.username || undefined,
+      chat_id: mockState.telegram.chatId || undefined,
+      last_poll_at: mockState.telegram.lastPollAt || undefined,
+      last_error: mockState.telegram.lastError || undefined,
+    }
+  },
+
+  async telegramListenerStop(): Promise<TelegramStatus> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('telegram_listener_stop')
+    }
+    mockState.telegram.running = false
+    return {
+      configured: Boolean(mockState.telegram.botToken && mockState.telegram.username),
+      verified: mockState.telegram.verified,
+      running: mockState.telegram.running,
+      username: mockState.telegram.username || undefined,
+      chat_id: mockState.telegram.chatId || undefined,
+      last_poll_at: mockState.telegram.lastPollAt || undefined,
+      last_error: mockState.telegram.lastError || undefined,
+    }
+  },
+
+  async telegramStatus(): Promise<TelegramStatus> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('telegram_status')
+    }
+    return {
+      configured: Boolean(mockState.telegram.botToken && mockState.telegram.username),
+      verified: mockState.telegram.verified,
+      running: mockState.telegram.running,
+      username: mockState.telegram.username || undefined,
+      chat_id: mockState.telegram.chatId || undefined,
+      last_poll_at: mockState.telegram.lastPollAt || undefined,
+      last_error: mockState.telegram.lastError || undefined,
+    }
   },
 }

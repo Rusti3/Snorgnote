@@ -20,6 +20,7 @@ pub const BUILTIN_SKILLS: &[(&str, &str)] = &[
 
 pub fn init_schema(conn: &Connection) -> Result<()> {
     conn.execute_batch(include_str!("../../migrations/001_init.sql"))?;
+    conn.execute_batch(include_str!("../../migrations/002_telegram.sql"))?;
     Ok(())
 }
 

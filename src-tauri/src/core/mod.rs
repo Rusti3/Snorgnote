@@ -5,6 +5,7 @@ pub mod planner;
 pub mod review;
 pub mod skills;
 pub mod state;
+pub mod telegram;
 pub mod types;
 pub mod utils;
 

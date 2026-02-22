@@ -1,4 +1,4 @@
-import { Brain, CalendarDays, Clock4, FolderKanban, Inbox, ScrollText } from 'lucide-react'
+import { Brain, CalendarDays, Clock4, FolderKanban, Inbox, ScrollText, Settings } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { Badge } from './components/ui/badge'
@@ -8,10 +8,11 @@ import { InboxPanel } from './features/inbox-panel'
 import { NotesPanel } from './features/notes-panel'
 import { PlanningPanel } from './features/planning-panel'
 import { ProjectsPanel } from './features/projects-panel'
+import { SettingsPanel } from './features/settings-panel'
 import { StatsPanel } from './features/stats-panel'
 import { api } from './lib/api'
 
-type TabId = 'inbox' | 'notes' | 'planning' | 'projects' | 'focus' | 'stats'
+type TabId = 'inbox' | 'notes' | 'planning' | 'projects' | 'focus' | 'stats' | 'settings'
 
 const tabs: Array<{ id: TabId; label: string; icon: typeof Inbox }> = [
   { id: 'inbox', label: 'Inbox', icon: Inbox },
@@ -20,6 +21,7 @@ const tabs: Array<{ id: TabId; label: string; icon: typeof Inbox }> = [
   { id: 'projects', label: 'Projects', icon: FolderKanban },
   { id: 'focus', label: 'Focus', icon: Clock4 },
   { id: 'stats', label: 'Stats', icon: Brain },
+  { id: 'settings', label: 'Settings', icon: Settings },
 ]
 
 export default function App() {
@@ -73,7 +75,7 @@ export default function App() {
           <Card>
             <h2 className="font-display text-2xl font-semibold">{title}</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
-              v0.1.0 foundation. Local-first vault, job pipeline, skills, planning, focus and metrics.
+              v0.1.1 with Telegram username capture. Local-first vault, job pipeline, skills, planning, focus and metrics.
             </p>
           </Card>
 
@@ -83,6 +85,7 @@ export default function App() {
           {tab === 'projects' ? <ProjectsPanel /> : null}
           {tab === 'focus' ? <FocusPanel /> : null}
           {tab === 'stats' ? <StatsPanel /> : null}
+          {tab === 'settings' ? <SettingsPanel /> : null}
         </main>
       </div>
     </div>

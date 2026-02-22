@@ -122,6 +122,31 @@ pub struct ProjectState {
     pub done_today: i64,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct TelegramStatus {
+    pub configured: bool,
+    pub verified: bool,
+    pub running: bool,
+    pub username: Option<String>,
+    pub chat_id: Option<String>,
+    pub last_poll_at: Option<String>,
+    pub last_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TelegramVerificationCode {
+    pub code: String,
+    pub expires_at: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TelegramPollReport {
+    pub fetched: i64,
+    pub accepted: i64,
+    pub rejected: i64,
+    pub verified_now: bool,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SkillConfig {
     pub id: String,

@@ -1,6 +1,8 @@
 use std::{
     fs,
     path::{Component, Path, PathBuf},
+    sync::{atomic::AtomicBool, Arc, Mutex},
+    thread::JoinHandle,
     time::Duration as StdDuration,
 };
 
@@ -23,10 +25,31 @@ use crate::core::{
     },
 };
 
-#[derive(Debug, Clone)]
+pub struct TelegramRuntime {
+    pub running: bool,
+    pub stop_flag: Option<Arc<AtomicBool>>,
+    pub join_handle: Option<JoinHandle<()>>,
+    pub last_poll_at: Option<String>,
+    pub last_error: Option<String>,
+}
+
+impl Default for TelegramRuntime {
+    fn default() -> Self {
+        Self {
+            running: false,
+            stop_flag: None,
+            join_handle: None,
+            last_poll_at: None,
+            last_error: None,
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct AppState {
     pub vault_root: PathBuf,
     pub db_path: PathBuf,
+    pub telegram_runtime: Arc<Mutex<TelegramRuntime>>,
 }
 
 impl AppState {
@@ -43,6 +66,7 @@ impl AppState {
         let state = Self {
             vault_root: base_dir.join("vault"),
             db_path: base_dir.join("snorgnote.db"),
+            telegram_runtime: Arc::new(Mutex::new(TelegramRuntime::default())),
         };
         state.init()?;
         Ok(state)
@@ -54,6 +78,7 @@ impl AppState {
         let state = Self {
             vault_root: base_dir.join("vault"),
             db_path: base_dir.join("snorgnote.db"),
+            telegram_runtime: Arc::new(Mutex::new(TelegramRuntime::default())),
         };
         state.init()?;
         Ok(state)

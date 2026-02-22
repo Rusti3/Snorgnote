@@ -104,3 +104,25 @@ export interface ProjectState {
   open_tasks: number
   done_today: number
 }
+
+export interface TelegramStatus {
+  configured: boolean
+  verified: boolean
+  running: boolean
+  username?: string
+  chat_id?: string
+  last_poll_at?: string
+  last_error?: string
+}
+
+export interface TelegramVerificationCode {
+  code: string
+  expires_at: string
+}
+
+export interface TelegramPollReport {
+  fetched: number
+  accepted: number
+  rejected: number
+  verified_now: boolean
+}

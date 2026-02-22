@@ -49,7 +49,7 @@
 
 ## v0.2.0 (Pipeline Expansion)
 
-- [ ] Реализовать Telegram adapter (capture + ack + health).
+- [x] Реализовать Telegram adapter (username verification + long polling + inbox ingest в private chat).
 - [ ] Реализовать Browser clipper ingestion.
 - [ ] Реализовать Email ingestion (минимальный IMAP/forward flow).
 - [ ] Добавить явный Logistics board UI (bottlenecks/routes/queue heatmap).

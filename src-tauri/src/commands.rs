@@ -138,3 +138,55 @@ pub fn projects_get_state(
 ) -> Result<Vec<crate::core::ProjectState>, String> {
     state.projects_state().map_err(|error| error.to_string())
 }
+
+#[tauri::command]
+pub fn telegram_set_config(
+    state: State<'_, AppState>,
+    bot_token: String,
+    username: String,
+) -> Result<crate::core::TelegramStatus, String> {
+    state
+        .telegram_set_config(bot_token, username)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn telegram_begin_verification(
+    state: State<'_, AppState>,
+) -> Result<crate::core::TelegramVerificationCode, String> {
+    state
+        .telegram_begin_verification()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn telegram_poll_once(
+    state: State<'_, AppState>,
+) -> Result<crate::core::TelegramPollReport, String> {
+    state
+        .telegram_poll_once()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn telegram_listener_start(
+    state: State<'_, AppState>,
+) -> Result<crate::core::TelegramStatus, String> {
+    state
+        .telegram_listener_start()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn telegram_listener_stop(
+    state: State<'_, AppState>,
+) -> Result<crate::core::TelegramStatus, String> {
+    state
+        .telegram_listener_stop()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn telegram_status(state: State<'_, AppState>) -> Result<crate::core::TelegramStatus, String> {
+    state.telegram_status().map_err(|error| error.to_string())
+}

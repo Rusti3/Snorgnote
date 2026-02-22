@@ -1,5 +1,6 @@
 import { Minus, Square, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { Window as TauriWindow } from '@tauri-apps/api/window'
 
 import { api } from '../lib/api'
 import { useLocale } from '../lib/locale'
@@ -20,11 +21,15 @@ export function WindowTitlebar() {
   )
 
   const withWindow = useCallback(
-    async (operation: (windowApi: { [key: string]: unknown }) => Promise<void>) => {
+    async (operation: (windowApi: TauriWindow) => Promise<void>) => {
       if (!isTauriRuntime) return
-      const { getCurrentWindow } = await import('@tauri-apps/api/window')
-      const appWindow = getCurrentWindow()
-      await operation(appWindow as unknown as { [key: string]: unknown })
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window')
+        const appWindow = getCurrentWindow()
+        await operation(appWindow)
+      } catch (error) {
+        console.error('window action failed', error)
+      }
     },
     [isTauriRuntime],
   )
@@ -72,20 +77,20 @@ export function WindowTitlebar() {
 
   const onMinimize = useCallback(async () => {
     await withWindow(async (windowApi) => {
-      await (windowApi.minimize as () => Promise<void>)()
+      await windowApi.minimize()
     })
   }, [withWindow])
 
   const onToggleMaximize = useCallback(async () => {
     await withWindow(async (windowApi) => {
-      await (windowApi.toggleMaximize as () => Promise<void>)()
+      await windowApi.toggleMaximize()
     })
     await refreshMaximizedState()
   }, [refreshMaximizedState, withWindow])
 
   const onClose = useCallback(async () => {
     await withWindow(async (windowApi) => {
-      await (windowApi.close as () => Promise<void>)()
+      await windowApi.close()
     })
   }, [withWindow])
 

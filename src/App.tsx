@@ -91,8 +91,8 @@ export default function App() {
             <h2 className="font-display text-2xl font-semibold">{title}</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
               {t(
-                'v0.1.8: кастомный заголовок окна и темы system/light/dark в настройках.',
-                'v0.1.8: custom window titlebar and system/light/dark theme settings.',
+                'v0.1.9: исправлена работа кнопок titlebar и сохранены темы system/light/dark.',
+                'v0.1.9: fixed titlebar controls and kept system/light/dark themes.',
               )}
             </p>
           </Card>

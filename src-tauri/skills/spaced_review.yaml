@@ -1,0 +1,17 @@
+id: spaced_review
+version: 1
+enabled: true
+inputs:
+  sources:
+    - notes
+    - reviews
+jobs:
+  - type: spaced_review_select
+outputs:
+  - target: daily_section
+    path_template: "Daily/{{date}}.md"
+    section: "Recall / Review"
+schedule:
+  cron: "30 7 * * *"
+triggers:
+  - event: daily.generated

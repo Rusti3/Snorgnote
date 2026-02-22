@@ -1,228 +1,82 @@
-# Snorgnote Roadmap (v0.1.0-alpha.4 Planning Baseline)
+# Snorgnote Roadmap (v0.1.0 -> v0.2+)
 
-## 1. Vision and Product Goal
+## Vision
 
-Build Snorgnote into a reliable personal operating system for knowledge and execution:
-- Capture everything into one inbox.
-- Process automatically via skills and LLM jobs.
-- Organize into vault-native notes/tasks/links.
-- Act daily with planning/focus/review loops.
-- Measure progress and health.
-- Project progress into a fair game layer derived from real work.
+Собрать масштабируемое open-source приложение, где pipeline работает как:
 
-Primary objective for v1.0.0:
-- `Reliable Personal OS` first.
-- Integrations and reliability before deep game complexity.
+`capture -> process -> organize -> act -> measure -> level up`
 
-Planning horizon:
-- 6 to 9 months from current state (`v0.1.0-alpha.3`).
+с локальным Vault как source of truth и расширяемыми skills/агентами.
 
-## 2. Current Baseline
+## v0.1.0 (Foundation) — реализовано
 
-Already implemented:
-- Rust modular core crates (`core_*`, `adapters`, `app_commands`).
-- Event/domain models, vault parsing/indexing, job queue with retries/dead-letter.
-- Config-first skill manifest parser/validator/registry.
-- Planning/focus/metrics primitives and tests.
-- Tauri + React desktop scaffold with working dev launch.
+### Core
 
-Still missing for production usage:
-- Real Telegram/Email/Browser integrations.
-- Durable runtime (full persistence/recovery guarantees).
-- Full UI workflows (Inbox, Daily, Review, Projects, Dashboard).
-- Production retrieval/RAG quality and source-grounded QA UX.
-- Release hardening and contributor-grade docs.
+- [x] Vault на markdown-файлах + Obsidian-style links (`[[...]]`) в индекс.
+- [x] SQLite + FTS5 индекс с миграцией `src-tauri/migrations/001_init.sql`.
+- [x] Таблицы для notes/inbox/events/jobs/skills/tasks/projects/focus/reviews/metrics.
+- [x] Встроенные проекты и начальные skills seed.
 
-## 3. Release Sequence
+### Orchestration
 
-## Phase A - Core Hardening (`v0.2.0`, Weeks 1-4)
-Goals:
-- Make core runtime crash-safe and restart-safe.
+- [x] Очередь jobs со state machine (`queued/running/success/retrying/failed`).
+- [x] Retry/backoff и event logging.
+- [x] Job handlers: summarize, extract_tasks, tag, plan_daily, plan_weekly, spaced_review_select, project_health_update, stats_rollup.
 
-Scope:
-- Persist inbox/jobs/events/metrics to SQLite (not only in-memory runtime state).
-- Migration runner and schema version tracking.
-- Startup recovery for pending/running jobs.
-- Vault watcher robustness (debounce, idempotent indexing, conflict-safe writes).
-- Structured local logs and diagnostics.
+### Planner + Focus
 
-Exit criteria:
-- Restart does not lose queued jobs.
-- Core flows survive abnormal shutdown.
+- [x] Daily generation (3-5 balanced suggestions + logistics block).
+- [x] Weekly generation (review + next week focus).
+- [x] Focus sessions start/stop + агрегированная статистика.
 
-## Phase B - Real Capture Integrations (`v0.3.0`, Weeks 5-10)
-Goals:
-- Deliver real inbound channels into unified inbox.
+### Skills
 
-Scope:
-- Telegram bot capture adapter.
-- Browser clipper MVP (page URL + selection/body snapshot).
-- Email ingest MVP (IMAP polling + metadata extraction).
-- Canonical inbox normalization contract for all adapters.
+- [x] YAML skill config schema.
+- [x] Валидация skills.
+- [x] Skills registry/list/run.
+- [x] Встроенные skills: `daily_planner`, `spaced_review`, `mood_money_events_summary`.
 
-Exit criteria:
-- End-to-end from each adapter to inbox item + job enqueue works.
+### UI
 
-## Phase C - Skills Runtime and Automation (`v0.4.0`, Weeks 11-16)
-Goals:
-- Move from skill parsing to production skill orchestration.
+- [x] Functional panels: Inbox, Notes, Daily/Weekly, Projects, Focus, Stats.
+- [x] Tauri commands integration + web mock fallback.
+- [x] Tailwind-based UI foundation + reusable primitives.
 
-Scope:
-- Trigger execution engine: `manual`, `schedule(cron)`, `event(type)`.
-- Per-skill execution history and failure traces.
-- Stable retry/fallback/dead-letter policies at runtime.
-- Vault output writers for daily/weekly/project sections with citations.
-- Built-in jobs hardening: summarize, extract_tasks, auto_tag, plan_daily, spaced_review_pick.
+### API-ready adapters (v0.1.0 scope)
 
-Exit criteria:
-- Skills run unattended on schedules/events with observable state.
+- [x] Adapter contracts + stubs (`telegram`, `email`, `browser clipper`).
+- [ ] Реальные адаптеры (перенесено в v0.2+).
 
-## Phase D - Daily UX Loop (`v0.5.0`, Weeks 17-22)
-Goals:
-- Make daily product value obvious in desktop UI.
+## v0.2.0 (Pipeline Expansion)
 
-Scope:
-- Complete panels for Inbox, Daily/Weekly, Focus, Review queue.
-- Pomodoro task/project binding + session history UI.
-- Review grading flow with interval updates.
-- Weekly synthesis with concrete next actions.
+- [ ] Реализовать Telegram adapter (capture + ack + health).
+- [ ] Реализовать Browser clipper ingestion.
+- [ ] Реализовать Email ingestion (минимальный IMAP/forward flow).
+- [ ] Добавить явный Logistics board UI (bottlenecks/routes/queue heatmap).
+- [ ] Добавить task completion workflow в UI.
+- [ ] Добавить review confirmation flow (успех/фейл -> пересчёт интервалов).
 
-Exit criteria:
-- A user can operate full day loop without CLI/debug tools.
+## v0.3.0 (Knowledge + RAG)
 
-## Phase E - Search, Graph, RAG (`v0.6.0`, Weeks 23-28)
-Goals:
-- Make knowledge retrieval trustworthy and fast.
+- [ ] Embeddings storage и retrieval слой (local-first).
+- [ ] RAG answers with source references.
+- [ ] Расширенный graph view (notes/projects/people/entities).
+- [ ] Улучшенная стратегия auto-tag/entity extraction.
 
-Scope:
-- FTS + graph signal ranking for retrieval.
-- Source-grounded QA with mandatory citations.
-- Optional embeddings backend behind feature flag.
-- Graph explorer MVP.
+## v0.4.0 (Game/Meta Layer)
 
-Exit criteria:
-- Answers over vault always reference source notes/paths.
+- [ ] Полноценный game-meta баланс (XP/resources/streaks/anti-farming).
+- [ ] Биомы проектов и апгрейды инфраструктуры.
+- [ ] Сценарии прогресса и достижений без искусственного фарма.
 
-## Phase F - Dashboard and Basic Game Layer (`v0.7.0`, Weeks 29-34)
-Goals:
-- Add progression feedback derived from real behavior.
+## Engineering track
 
-Scope:
-- KPI dashboard: inbox throughput, focus time, review cadence, project health.
-- Basic progression model (levels/resources from real metrics).
-- Logistics board MVP (bottlenecks, overloaded flows, route hints).
+- [ ] CI: lint + unit + integration + packaging checks.
+- [ ] Backups/recovery и migration guards.
+- [ ] Security hardening (secrets/keychain, vault boundary enforcement).
+- [ ] Cross-platform parity (Linux/macOS hardening).
 
-Exit criteria:
-- No artificial farming path; game values are projection-only.
+## Release policy
 
-## Phase G - Stabilization and OSS Release (`v1.0.0`, Weeks 35-40)
-Goals:
-- Freeze stable contracts and ship contributor-ready release.
-
-Scope:
-- Freeze `skill.yaml v1`, command API contracts, event payload versioning.
-- Compatibility policy for migrations and data evolution.
-- Windows-first release pipeline and packaging docs.
-- Security/privacy pass (secrets, telemetry opt-in model, auditability).
-- Contributor guides for skills/adapters/core architecture.
-
-Exit criteria:
-- Stable `v1.0.0` with documented extension pathways.
-
-## 4. Interface Contracts to Finalize
-
-## 4.1 Tauri/App Command Layer
-Stabilize command set (target surface):
-- `vault_open`, `vault_scan`
-- `capture_manual`, `inbox_list`
-- `job_enqueue`, `job_retry`, `run_jobs`
-- `skills_load_dir`, `skills_list`, `skill_enable`
-- `daily_generate`, `weekly_generate`
-- `review_get_due`, `review_mark`
-- `pomodoro_start`, `pomodoro_stop`
-- `dashboard_get`
-- `search_notes`
-
-Require:
-- Typed error categories.
-- Consistent serialization for UI.
-
-## 4.2 Skill Manifest v1
-Freeze schema fields:
-- `id`, `name`, `version`, `description`, `enabled`
-- `triggers`, `inputs`, `jobs`, `outputs`
-- `llm_policy`, `error_policy`, `permissions`
-
-Require:
-- Semantic validation rules.
-- Backward-compatible versioning strategy.
-
-## 4.3 Events and Storage
-Require:
-- Stable event type catalog + payload version field.
-- Mandatory correlation/causation IDs in runtime.
-- Forward-only migration policy.
-
-## 5. Quality Gates
-
-## 5.1 Mandatory Commands (for release candidates)
-- `cargo fmt --all`
-- `cargo clippy --workspace --all-targets -- -D warnings`
-- `cargo test --workspace`
-
-## 5.2 Test Matrix
-Unit:
-- Parsing invariants (vault/frontmatter/wikilinks/skill manifests).
-- Job state transitions and retry math.
-- Planner/review scoring and interval updates.
-
-Integration:
-- Adapter capture -> inbox -> job enqueue -> skill run -> vault write -> reindex.
-- Recovery after restart with queued/running jobs.
-- Citation integrity for generated outputs.
-
-E2E:
-- Daily path: capture -> plan -> pomodoro -> review -> weekly summary.
-
-Performance baseline:
-- Search latency <=150ms on 10k notes (reference machine class).
-- Sustained processing >=1k inbox items/day without loss.
-
-## 6. Risks and Mitigations
-
-Risk:
-- Adapter API instability and auth issues.
-Mitigation:
-- Strict adapter isolation, retries, circuit breakers, clear health states.
-
-Risk:
-- Vault and DB divergence.
-Mitigation:
-- Deterministic reconciliation jobs + periodic consistency checks.
-
-Risk:
-- LLM output drift/hallucination.
-Mitigation:
-- Structured output contracts + citation-required policy + provider fallback.
-
-Risk:
-- Game layer distorting behavior.
-Mitigation:
-- Derived-only scoring from real work signals, no standalone farm mechanics.
-
-## 7. Definition of Done for v1.0.0
-
-Must be true:
-- Daily usage is reliable on Windows without manual repair.
-- At least 2 production-grade capture integrations + manual capture.
-- Skills execute on schedule/event with observable results and retries.
-- Planner/focus/review loop usable end-to-end in desktop UI.
-- Knowledge QA includes citations to vault sources.
-- Dashboard and basic progression layer are live and fair.
-- Public docs and extension guides are complete.
-
-## 8. Operating Assumptions
-- Platform strategy: Windows-first quality, Linux/macOS follow.
-- Sync strategy: bring-your-own sync (Git/Obsidian Sync/etc.).
-- Secrets strategy: OS keychain, not vault/plaintext storage.
-- Telemetry strategy: local-first, external export only opt-in.
+- Windows-first стабильный релиз.
+- Linux/macOS на этапе best-effort build и постепенного выравнивания.

@@ -1,0 +1,22 @@
+id: mood_money_events_summary
+version: 1
+enabled: true
+inputs:
+  sources:
+    - notes
+    - inbox
+    - metrics
+  filters:
+    tags_any:
+      - mood
+      - money
+      - events
+jobs:
+  - type: aggregate
+  - type: summarize_llm
+  - type: extract_actions
+outputs:
+  - target: vault_note
+    path_template: "Dashboards/Mood-Money-Events/{{date}}.md"
+schedule:
+  cron: "0 8 * * *"

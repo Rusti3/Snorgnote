@@ -90,8 +90,8 @@ export default function App() {
             <h2 className="font-display text-2xl font-semibold">{title}</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
               {t(
-                'v0.1.13: добавлен live-preview кастомной темы и разделение ролей цветов (основной: фон/titlebar, дополнительный: кнопки/акценты).',
-                'v0.1.13: added custom theme live preview and split color roles (primary: background/titlebar, secondary: buttons/accents).',
+                'v0.1.14: убран live-preview в настройках и расширена drag-зона titlebar (кроме кнопок окна).',
+                'v0.1.14: removed theme live preview and expanded titlebar drag area (excluding window buttons).',
               )}
             </p>
           </Card>

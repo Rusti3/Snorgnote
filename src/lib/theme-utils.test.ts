@@ -7,6 +7,8 @@ import {
   DEFAULT_DARK_SECONDARY,
   DEFAULT_LIGHT_PRIMARY,
   DEFAULT_LIGHT_SECONDARY,
+  DARK_PRIMARY_COLOR_PALETTE,
+  LIGHT_PRIMARY_COLOR_PALETTE,
   normalizePaletteColor,
   normalizeThemeMode,
   PRIMARY_COLOR_PALETTE,
@@ -77,6 +79,19 @@ describe('theme-utils', () => {
         DEFAULT_LIGHT_SECONDARY,
       ),
     ).toBe(SECONDARY_COLOR_PALETTE[2])
+
+    expect(
+      normalizePaletteColor('#ffffff', LIGHT_PRIMARY_COLOR_PALETTE, DEFAULT_LIGHT_PRIMARY),
+    ).toBe('#ffffff')
+    expect(
+      normalizePaletteColor('#000000', DARK_PRIMARY_COLOR_PALETTE, DEFAULT_DARK_PRIMARY),
+    ).toBe('#000000')
+    expect(
+      normalizePaletteColor('#ffffff', DARK_PRIMARY_COLOR_PALETTE, DEFAULT_DARK_PRIMARY),
+    ).toBe(DEFAULT_DARK_PRIMARY)
+    expect(
+      normalizePaletteColor('#000000', LIGHT_PRIMARY_COLOR_PALETTE, DEFAULT_LIGHT_PRIMARY),
+    ).toBe(DEFAULT_LIGHT_PRIMARY)
   })
 
   it('builds css vars for light mode', () => {

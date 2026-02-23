@@ -5,13 +5,14 @@ import type { ReactNode } from 'react'
 
 import {
   buildThemeVars,
+  DARK_PRIMARY_COLOR_PALETTE,
   DEFAULT_DARK_PRIMARY,
   DEFAULT_DARK_SECONDARY,
   DEFAULT_LIGHT_PRIMARY,
   DEFAULT_LIGHT_SECONDARY,
+  LIGHT_PRIMARY_COLOR_PALETTE,
   normalizePaletteColor,
   normalizeThemeMode,
-  PRIMARY_COLOR_PALETTE,
   resolveThemeMode,
   SECONDARY_COLOR_PALETTE,
 } from './theme-utils'
@@ -65,7 +66,7 @@ export function ThemeProvider(props: { children: ReactNode }) {
   const [lightPrimary, setLightPrimaryState] = useState<string>(() =>
     detectInitialPaletteColor(
       LIGHT_PRIMARY_KEY,
-      PRIMARY_COLOR_PALETTE,
+      LIGHT_PRIMARY_COLOR_PALETTE,
       DEFAULT_LIGHT_PRIMARY,
     ),
   )
@@ -79,7 +80,7 @@ export function ThemeProvider(props: { children: ReactNode }) {
   const [darkPrimary, setDarkPrimaryState] = useState<string>(() =>
     detectInitialPaletteColor(
       DARK_PRIMARY_KEY,
-      PRIMARY_COLOR_PALETTE,
+      DARK_PRIMARY_COLOR_PALETTE,
       DEFAULT_DARK_PRIMARY,
     ),
   )
@@ -132,7 +133,7 @@ export function ThemeProvider(props: { children: ReactNode }) {
       LIGHT_PRIMARY_KEY,
       normalizePaletteColor(
         lightPrimary,
-        PRIMARY_COLOR_PALETTE,
+        LIGHT_PRIMARY_COLOR_PALETTE,
         DEFAULT_LIGHT_PRIMARY,
       ),
     )
@@ -156,7 +157,7 @@ export function ThemeProvider(props: { children: ReactNode }) {
       DARK_PRIMARY_KEY,
       normalizePaletteColor(
         darkPrimary,
-        PRIMARY_COLOR_PALETTE,
+        DARK_PRIMARY_COLOR_PALETTE,
         DEFAULT_DARK_PRIMARY,
       ),
     )
@@ -191,7 +192,11 @@ export function ThemeProvider(props: { children: ReactNode }) {
 
   const setLightPrimary = useCallback((next: string) => {
     setLightPrimaryState(
-      normalizePaletteColor(next, PRIMARY_COLOR_PALETTE, DEFAULT_LIGHT_PRIMARY),
+      normalizePaletteColor(
+        next,
+        LIGHT_PRIMARY_COLOR_PALETTE,
+        DEFAULT_LIGHT_PRIMARY,
+      ),
     )
   }, [])
 
@@ -207,7 +212,7 @@ export function ThemeProvider(props: { children: ReactNode }) {
 
   const setDarkPrimary = useCallback((next: string) => {
     setDarkPrimaryState(
-      normalizePaletteColor(next, PRIMARY_COLOR_PALETTE, DEFAULT_DARK_PRIMARY),
+      normalizePaletteColor(next, DARK_PRIMARY_COLOR_PALETTE, DEFAULT_DARK_PRIMARY),
     )
   }, [])
 

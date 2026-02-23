@@ -6,7 +6,11 @@ import { Card } from '../components/ui/card'
 import { api } from '../lib/api'
 import { useLocale } from '../lib/locale'
 import { useTheme } from '../lib/theme'
-import { PRIMARY_COLOR_PALETTE, SECONDARY_COLOR_PALETTE } from '../lib/theme-utils'
+import {
+  DARK_PRIMARY_COLOR_PALETTE,
+  LIGHT_PRIMARY_COLOR_PALETTE,
+  SECONDARY_COLOR_PALETTE,
+} from '../lib/theme-utils'
 import type {
   TelegramPollReport,
   TelegramStatus,
@@ -38,6 +42,10 @@ export function SettingsPanel() {
   const paletteEditable = themeMode === 'light' || themeMode === 'dark'
   const palettePrimary = themeMode === 'dark' ? darkPrimary : lightPrimary
   const paletteSecondary = themeMode === 'dark' ? darkSecondary : lightSecondary
+  const primaryPalette =
+    themeMode === 'dark'
+      ? DARK_PRIMARY_COLOR_PALETTE
+      : LIGHT_PRIMARY_COLOR_PALETTE
 
   const loadStatus = useCallback(async () => {
     setError(null)
@@ -197,7 +205,7 @@ export function SettingsPanel() {
               {t('Основной цвет (фон и titlebar)', 'Primary color (background + titlebar)')}
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
-              {PRIMARY_COLOR_PALETTE.map((color) => {
+              {primaryPalette.map((color) => {
                 const selected = color === palettePrimary
                 return (
                   <button

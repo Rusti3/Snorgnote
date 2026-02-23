@@ -12,6 +12,16 @@ export const PRIMARY_COLOR_PALETTE = [
   '#b23a48',
 ] as const
 
+export const LIGHT_PRIMARY_COLOR_PALETTE = [
+  ...PRIMARY_COLOR_PALETTE,
+  '#ffffff',
+] as const
+
+export const DARK_PRIMARY_COLOR_PALETTE = [
+  ...PRIMARY_COLOR_PALETTE,
+  '#000000',
+] as const
+
 export const SECONDARY_COLOR_PALETTE = [
   '#f4e8cb',
   '#b9d7f7',

@@ -6,6 +6,7 @@ import { Card } from '../components/ui/card'
 import { api } from '../lib/api'
 import { useLocale } from '../lib/locale'
 import { useTheme } from '../lib/theme'
+import { PRIMARY_COLOR_PALETTE, SECONDARY_COLOR_PALETTE } from '../lib/theme-utils'
 import type {
   TelegramPollReport,
   TelegramStatus,
@@ -14,7 +15,15 @@ import type {
 
 export function SettingsPanel() {
   const { locale, setLocale, t } = useLocale()
-  const { themeMode, setThemeMode } = useTheme()
+  const {
+    themeMode,
+    setThemeMode,
+    customPrimary,
+    customSecondary,
+    setCustomPrimary,
+    setCustomSecondary,
+  } = useTheme()
+
   const [botToken, setBotToken] = useState('')
   const [username, setUsername] = useState('')
   const [status, setStatus] = useState<TelegramStatus | null>(null)
@@ -32,7 +41,11 @@ export function SettingsPanel() {
         setUsername(result.username)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('Не удалось загрузить статус Telegram', 'Failed to load Telegram status'))
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('Не удалось загрузить статус Telegram', 'Failed to load Telegram status'),
+      )
     }
   }, [t, username])
 
@@ -54,7 +67,11 @@ export function SettingsPanel() {
         ),
       )
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('Не удалось сохранить конфиг Telegram', 'Failed to save Telegram config'))
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('Не удалось сохранить конфиг Telegram', 'Failed to save Telegram config'),
+      )
     }
   }
 
@@ -67,7 +84,7 @@ export function SettingsPanel() {
       setInfo(
         t(
           'Отправьте этот код боту в личные сообщения Telegram, затем нажмите «Проверить сейчас».',
-          'Send this code to your Telegram bot in private chat, then click "Poll Now".',
+          'Send this code to your Telegram bot in private chat, then click "Poll now".',
         ),
       )
     } catch (err) {
@@ -95,7 +112,11 @@ export function SettingsPanel() {
         )
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('Не удалось опросить обновления Telegram', 'Failed to poll Telegram updates'))
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('Не удалось опросить обновления Telegram', 'Failed to poll Telegram updates'),
+      )
     }
   }
 
@@ -141,6 +162,7 @@ export function SettingsPanel() {
             'Theme mode applies instantly and is stored locally.',
           )}
         </p>
+
         <div className="mt-3 flex flex-wrap gap-2">
           <Button
             variant={themeMode === 'system' ? 'default' : 'outline'}
@@ -160,6 +182,75 @@ export function SettingsPanel() {
           >
             {t('Тёмная', 'Dark')}
           </Button>
+          <Button
+            variant={themeMode === 'custom' ? 'default' : 'outline'}
+            onClick={() => setThemeMode('custom')}
+          >
+            {t('Кастомная', 'Custom')}
+          </Button>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <div>
+            <p className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
+              {t('Основной цвет', 'Primary color')}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {PRIMARY_COLOR_PALETTE.map((color) => {
+                const selected = color === customPrimary
+                return (
+                  <button
+                    key={color}
+                    aria-label={`${t('Основной цвет', 'Primary color')}: ${color}`}
+                    className={`h-8 w-8 rounded-full border transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${
+                      selected
+                        ? 'border-[var(--foreground)] ring-2 ring-[var(--foreground)]/20'
+                        : 'border-[var(--border)]'
+                    } ${themeMode !== 'custom' ? 'cursor-not-allowed opacity-50 hover:scale-100' : ''}`}
+                    disabled={themeMode !== 'custom'}
+                    onClick={() => setCustomPrimary(color)}
+                    style={{ backgroundColor: color }}
+                    type="button"
+                  />
+                )
+              })}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
+              {t('Дополнительный цвет', 'Secondary color')}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {SECONDARY_COLOR_PALETTE.map((color) => {
+                const selected = color === customSecondary
+                return (
+                  <button
+                    key={color}
+                    aria-label={`${t('Дополнительный цвет', 'Secondary color')}: ${color}`}
+                    className={`h-8 w-8 rounded-full border transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${
+                      selected
+                        ? 'border-[var(--foreground)] ring-2 ring-[var(--foreground)]/20'
+                        : 'border-[var(--border)]'
+                    } ${themeMode !== 'custom' ? 'cursor-not-allowed opacity-50 hover:scale-100' : ''}`}
+                    disabled={themeMode !== 'custom'}
+                    onClick={() => setCustomSecondary(color)}
+                    style={{ backgroundColor: color }}
+                    type="button"
+                  />
+                )
+              })}
+            </div>
+          </div>
+
+          {themeMode !== 'custom' ? (
+            <p className="text-xs text-[var(--muted-foreground)]">
+              {t(
+                'Палитра применяется в режиме «Кастомная».',
+                'Palette is applied in "Custom" mode.',
+              )}
+            </p>
+          ) : null}
         </div>
       </Card>
 

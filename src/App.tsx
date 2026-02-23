@@ -65,6 +65,7 @@ export default function App() {
                         : 'hover:bg-[var(--muted)]'
                     }`}
                     onClick={() => setTab(item.id)}
+                    type="button"
                   >
                     <Icon size={16} />
                     {item.label}
@@ -79,9 +80,7 @@ export default function App() {
               {t('Режим', 'Mode')}
             </p>
             <Badge>
-              {api.isTauri()
-                ? t('Tauri (нативный)', 'Tauri (native)')
-                : t('Веб (мок)', 'Web (mock)')}
+              {api.isTauri() ? t('Tauri (нативный)', 'Tauri (native)') : t('Веб (мок)', 'Web (mock)')}
             </Badge>
           </Card>
         </aside>
@@ -91,8 +90,8 @@ export default function App() {
             <h2 className="font-display text-2xl font-semibold">{title}</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
               {t(
-                'v0.1.10: исправлено перетаскивание окна за titlebar и сохранены темы system/light/dark.',
-                'v0.1.10: fixed window dragging via titlebar and kept system/light/dark themes.',
+                'v0.1.12: добавлена 4-я тема «Кастомная» с выбором основного и дополнительного цвета из палитры.',
+                'v0.1.12: added the 4th "Custom" theme with selectable primary and secondary palette colors.',
               )}
             </p>
           </Card>

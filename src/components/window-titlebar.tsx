@@ -1,26 +1,18 @@
 import { Minus, Square, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { MouseEvent } from 'react'
 import type { Window as TauriWindow } from '@tauri-apps/api/window'
 
 import { api } from '../lib/api'
 import { useLocale } from '../lib/locale'
-import { useTheme } from '../lib/theme'
-import { buildWindowTitle } from '../lib/theme-utils'
 import { shouldStartWindowDrag } from './window-titlebar-utils'
 
 const APP_NAME = 'Snorgnote'
 
 export function WindowTitlebar() {
-  const { locale, t } = useLocale()
-  const { themeMode } = useTheme()
+  const { t } = useLocale()
   const isTauriRuntime = api.isTauri()
   const [isMaximized, setIsMaximized] = useState(false)
-
-  const windowTitle = useMemo(
-    () => buildWindowTitle(APP_NAME, themeMode, locale),
-    [locale, themeMode],
-  )
 
   const withWindow = useCallback(
     async (operation: (windowApi: TauriWindow) => Promise<void>) => {
@@ -56,7 +48,7 @@ export function WindowTitlebar() {
         const appWindow = getCurrentWindow()
 
         setIsMaximized(await appWindow.isMaximized())
-        await appWindow.setTitle(windowTitle)
+        await appWindow.setTitle(APP_NAME)
 
         const unlistenResized = await appWindow.onResized(async () => {
           if (disposed) return
@@ -75,7 +67,7 @@ export function WindowTitlebar() {
       disposed = true
       if (cleanup) cleanup()
     }
-  }, [isTauriRuntime, windowTitle])
+  }, [isTauriRuntime])
 
   const onMinimize = useCallback(async () => {
     await withWindow(async (windowApi) => {
@@ -117,7 +109,7 @@ export function WindowTitlebar() {
         onDoubleClick={() => void onToggleMaximize()}
       >
         <p className="truncate text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-          {windowTitle}
+          {APP_NAME}
         </p>
       </div>
 

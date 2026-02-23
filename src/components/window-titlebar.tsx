@@ -120,10 +120,10 @@ export function WindowTitlebar() {
       </div>
 
       {isTauriRuntime ? (
-        <div className="flex items-center gap-1 px-2">
+        <div className="flex h-full items-stretch">
           <button
             aria-label={t('Свернуть окно', 'Minimize window')}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+            className="inline-flex h-full w-11 items-center justify-center text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
             data-window-control="true"
             onClick={() => void onMinimize()}
             type="button"
@@ -135,7 +135,7 @@ export function WindowTitlebar() {
               isMaximized ? 'Восстановить окно' : 'Развернуть окно',
               isMaximized ? 'Restore window' : 'Maximize window',
             )}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+            className="inline-flex h-full w-11 items-center justify-center text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
             data-window-control="true"
             onClick={() => void onToggleMaximize()}
             type="button"
@@ -144,7 +144,7 @@ export function WindowTitlebar() {
           </button>
           <button
             aria-label={t('Закрыть окно', 'Close window')}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[var(--muted-foreground)] transition-colors hover:bg-[var(--danger)] hover:text-white"
+            className="inline-flex h-full w-11 items-center justify-center text-[var(--muted-foreground)] transition-colors hover:bg-[var(--danger)] hover:text-white"
             data-window-control="true"
             onClick={() => void onClose()}
             type="button"

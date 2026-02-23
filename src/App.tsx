@@ -90,8 +90,8 @@ export default function App() {
             <h2 className="font-display text-2xl font-semibold">{title}</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
               {t(
-                'v0.1.14: убран live-preview в настройках и расширена drag-зона titlebar (кроме кнопок окна).',
-                'v0.1.14: removed theme live preview and expanded titlebar drag area (excluding window buttons).',
+                'v0.1.15: кнопки titlebar нажимаются на всю высоту панели, drag работает в остальной области.',
+                'v0.1.15: titlebar controls are clickable across full bar height, while drag works in the remaining area.',
               )}
             </p>
           </Card>

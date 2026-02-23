@@ -12,7 +12,7 @@
 
 ## Статус
 
-Текущая версия: `v0.1.9`.
+Текущая версия: `v0.1.10`.
 
 Реализовано:
 
@@ -105,3 +105,9 @@ npm run dev
 
 - Исправлена работа кнопок кастомного titlebar (`свернуть / развернуть / закрыть`) в Tauri v2 через явные window-permissions в `capabilities/default.json`.
 - Добавлена безопасная обработка ошибок window API в `window-titlebar.tsx`, чтобы отказ прав не приводил к "тихим" кликам без диагностики.
+
+### v0.1.10
+
+- Исправлено перетаскивание frameless-окна: добавлен явный вызов `startDragging()` по левому клику в drag-области titlebar.
+- Добавлено необходимое Tauri permission `core:window:allow-start-dragging` в `capabilities/default.json`.
+- Добавлен unit-тест для условия старта drag (`window-titlebar-utils.test.ts`).

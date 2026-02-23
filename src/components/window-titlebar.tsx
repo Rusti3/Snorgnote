@@ -1,11 +1,13 @@
 import { Minus, Square, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { MouseEvent } from 'react'
 import type { Window as TauriWindow } from '@tauri-apps/api/window'
 
 import { api } from '../lib/api'
 import { useLocale } from '../lib/locale'
 import { useTheme } from '../lib/theme'
 import { buildWindowTitle } from '../lib/theme-utils'
+import { shouldStartWindowDrag } from './window-titlebar-utils'
 
 const APP_NAME = 'Snorgnote'
 
@@ -94,11 +96,24 @@ export function WindowTitlebar() {
     })
   }, [withWindow])
 
+  const onDragMouseDown = useCallback(
+    async (event: MouseEvent<HTMLDivElement>) => {
+      if (!isTauriRuntime) return
+      if (!shouldStartWindowDrag(event.button)) return
+
+      await withWindow(async (windowApi) => {
+        await windowApi.startDragging()
+      })
+    },
+    [isTauriRuntime, withWindow],
+  )
+
   return (
     <div className="sticky top-0 z-50 flex h-11 items-center border-b border-[var(--border)] bg-[var(--card)]/95 backdrop-blur">
       <div
-        className="flex min-w-0 flex-1 items-center px-3"
+        className="flex min-w-0 flex-1 select-none items-center px-3"
         data-tauri-drag-region
+        onMouseDown={(event) => void onDragMouseDown(event)}
         onDoubleClick={() => void onToggleMaximize()}
       >
         <p className="truncate text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">

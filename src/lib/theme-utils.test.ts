@@ -149,4 +149,17 @@ describe('theme-utils', () => {
     expect(lightVars['--background']).toBe(baselineLight['--background'])
     expect(darkVars['--background']).toBe(baselineDark['--background'])
   })
+
+  it('keeps foreground/background vars for scrollbar mapping', () => {
+    const lightVars = buildThemeVars('light', '#ffffff', '#f4e8cb')
+    const darkVars = buildThemeVars('dark', '#000000', '#d0d4e8')
+
+    expect(lightVars['--foreground']).toMatch(/^#[0-9a-f]{6}$/i)
+    expect(lightVars['--background']).toMatch(/^#[0-9a-f]{6}$/i)
+    expect(lightVars['--foreground']).not.toBe(lightVars['--background'])
+
+    expect(darkVars['--foreground']).toMatch(/^#[0-9a-f]{6}$/i)
+    expect(darkVars['--background']).toMatch(/^#[0-9a-f]{6}$/i)
+    expect(darkVars['--foreground']).not.toBe(darkVars['--background'])
+  })
 })

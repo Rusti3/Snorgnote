@@ -37,6 +37,8 @@
 
 * {
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--foreground) var(--background);
 }
 
 html,
@@ -53,6 +55,25 @@ body {
     radial-gradient(circle at 85% 90%, var(--bg-radial-2), transparent 35%),
     var(--background);
   color: var(--foreground);
+}
+
+*::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--foreground);
+  border: 3px solid var(--background);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-corner {
+  background: var(--background);
 }
 
 .font-display {

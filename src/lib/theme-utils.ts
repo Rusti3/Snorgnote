@@ -1,6 +1,6 @@
 import type { Locale } from './locale'
 
-export type ThemeMode = 'system' | 'light' | 'dark' | 'custom'
+export type ThemeMode = 'system' | 'light' | 'dark'
 export type ResolvedTheme = 'light' | 'dark'
 
 export const PRIMARY_COLOR_PALETTE = [
@@ -21,11 +21,13 @@ export const SECONDARY_COLOR_PALETTE = [
   '#d0d4e8',
 ] as const
 
-export const DEFAULT_CUSTOM_PRIMARY = PRIMARY_COLOR_PALETTE[0]
-export const DEFAULT_CUSTOM_SECONDARY = SECONDARY_COLOR_PALETTE[0]
+export const DEFAULT_LIGHT_PRIMARY = PRIMARY_COLOR_PALETTE[0]
+export const DEFAULT_LIGHT_SECONDARY = SECONDARY_COLOR_PALETTE[0]
+export const DEFAULT_DARK_PRIMARY = PRIMARY_COLOR_PALETTE[0]
+export const DEFAULT_DARK_SECONDARY = SECONDARY_COLOR_PALETTE[0]
 
 export function normalizeThemeMode(raw: string | null | undefined): ThemeMode {
-  if (raw === 'light' || raw === 'dark' || raw === 'system' || raw === 'custom') {
+  if (raw === 'light' || raw === 'dark' || raw === 'system') {
     return raw
   }
   return 'system'
@@ -37,7 +39,6 @@ export function resolveThemeMode(
 ): ResolvedTheme {
   if (mode === 'light') return 'light'
   if (mode === 'dark') return 'dark'
-  if (mode === 'custom') return 'light'
   return prefersDark ? 'dark' : 'light'
 }
 
@@ -45,12 +46,10 @@ export function themeModeLabel(mode: ThemeMode, locale: Locale): string {
   if (locale === 'ru') {
     if (mode === 'light') return 'Светлая'
     if (mode === 'dark') return 'Тёмная'
-    if (mode === 'custom') return 'Кастомная'
     return 'Системная'
   }
   if (mode === 'light') return 'Light'
   if (mode === 'dark') return 'Dark'
-  if (mode === 'custom') return 'Custom'
   return 'System'
 }
 
@@ -73,12 +72,32 @@ export function normalizePaletteColor(
   return found ?? fallback
 }
 
-export function buildCustomThemeVars(
+export function buildThemeVars(
+  mode: ResolvedTheme,
   primary: string,
   secondary: string,
 ): Record<string, string> {
-  const safePrimary = isHexColor(primary) ? primary : DEFAULT_CUSTOM_PRIMARY
-  const safeSecondary = isHexColor(secondary) ? secondary : DEFAULT_CUSTOM_SECONDARY
+  const safePrimary = isHexColor(primary)
+    ? primary
+    : mode === 'dark'
+      ? DEFAULT_DARK_PRIMARY
+      : DEFAULT_LIGHT_PRIMARY
+  const safeSecondary = isHexColor(secondary)
+    ? secondary
+    : mode === 'dark'
+      ? DEFAULT_DARK_SECONDARY
+      : DEFAULT_LIGHT_SECONDARY
+
+  if (mode === 'dark') {
+    return buildDarkThemeVars(safePrimary, safeSecondary)
+  }
+  return buildLightThemeVars(safePrimary, safeSecondary)
+}
+
+function buildLightThemeVars(
+  safePrimary: string,
+  safeSecondary: string,
+): Record<string, string> {
   const background = tint(safePrimary, 0.9)
   const card = tint(safePrimary, 0.95)
   const muted = tint(safePrimary, 0.86)
@@ -100,6 +119,34 @@ export function buildCustomThemeVars(
     '--surface-gradient': `linear-gradient(135deg, ${rgba(safePrimary, 0.24)} 0%, ${rgba(tint(safePrimary, 0.68), 0.24)} 100%)`,
     '--bg-radial-1': rgba(safePrimary, 0.24),
     '--bg-radial-2': rgba(shade(safePrimary, 0.18), 0.2),
+  }
+}
+
+function buildDarkThemeVars(
+  safePrimary: string,
+  safeSecondary: string,
+): Record<string, string> {
+  const background = shade(safePrimary, 0.78)
+  const card = shade(safePrimary, 0.7)
+  const muted = shade(safePrimary, 0.62)
+  const border = mixHex(background, '#ffffff', 0.22)
+  const titlebar = shade(safePrimary, 0.66)
+  const foreground = readableOnColor(background)
+  const mutedForeground = mixHex(foreground, background, 0.4)
+
+  return {
+    '--background': background,
+    '--foreground': foreground,
+    '--card': card,
+    '--muted': muted,
+    '--muted-foreground': mutedForeground,
+    '--border': border,
+    '--titlebar-bg': titlebar,
+    '--primary': safeSecondary,
+    '--primary-foreground': readableOnColor(safeSecondary),
+    '--surface-gradient': `linear-gradient(135deg, ${rgba(tint(safePrimary, 0.22), 0.22)} 0%, ${rgba(shade(safePrimary, 0.26), 0.28)} 100%)`,
+    '--bg-radial-1': rgba(tint(safePrimary, 0.26), 0.24),
+    '--bg-radial-2': rgba(shade(safePrimary, 0.08), 0.22),
   }
 }
 

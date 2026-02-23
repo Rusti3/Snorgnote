@@ -18,10 +18,14 @@ export function SettingsPanel() {
   const {
     themeMode,
     setThemeMode,
-    customPrimary,
-    customSecondary,
-    setCustomPrimary,
-    setCustomSecondary,
+    lightPrimary,
+    lightSecondary,
+    darkPrimary,
+    darkSecondary,
+    setLightPrimary,
+    setLightSecondary,
+    setDarkPrimary,
+    setDarkSecondary,
   } = useTheme()
 
   const [botToken, setBotToken] = useState('')
@@ -31,6 +35,9 @@ export function SettingsPanel() {
   const [pollReport, setPollReport] = useState<TelegramPollReport | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const paletteEditable = themeMode === 'light' || themeMode === 'dark'
+  const palettePrimary = themeMode === 'dark' ? darkPrimary : lightPrimary
+  const paletteSecondary = themeMode === 'dark' ? darkSecondary : lightSecondary
 
   const loadStatus = useCallback(async () => {
     setError(null)
@@ -182,12 +189,6 @@ export function SettingsPanel() {
           >
             {t('Тёмная', 'Dark')}
           </Button>
-          <Button
-            variant={themeMode === 'custom' ? 'default' : 'outline'}
-            onClick={() => setThemeMode('custom')}
-          >
-            {t('Кастомная', 'Custom')}
-          </Button>
         </div>
 
         <div className="mt-4 space-y-3">
@@ -197,7 +198,7 @@ export function SettingsPanel() {
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {PRIMARY_COLOR_PALETTE.map((color) => {
-                const selected = color === customPrimary
+                const selected = color === palettePrimary
                 return (
                   <button
                     key={color}
@@ -206,9 +207,13 @@ export function SettingsPanel() {
                       selected
                         ? 'border-[var(--foreground)] ring-2 ring-[var(--foreground)]/20'
                         : 'border-[var(--border)]'
-                    } ${themeMode !== 'custom' ? 'cursor-not-allowed opacity-50 hover:scale-100' : ''}`}
-                    disabled={themeMode !== 'custom'}
-                    onClick={() => setCustomPrimary(color)}
+                    } ${!paletteEditable ? 'cursor-not-allowed opacity-50 hover:scale-100' : ''}`}
+                    disabled={!paletteEditable}
+                    onClick={() =>
+                      themeMode === 'dark'
+                        ? setDarkPrimary(color)
+                        : setLightPrimary(color)
+                    }
                     style={{ backgroundColor: color }}
                     type="button"
                   />
@@ -223,7 +228,7 @@ export function SettingsPanel() {
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {SECONDARY_COLOR_PALETTE.map((color) => {
-                const selected = color === customSecondary
+                const selected = color === paletteSecondary
                 return (
                   <button
                     key={color}
@@ -232,9 +237,13 @@ export function SettingsPanel() {
                       selected
                         ? 'border-[var(--foreground)] ring-2 ring-[var(--foreground)]/20'
                         : 'border-[var(--border)]'
-                    } ${themeMode !== 'custom' ? 'cursor-not-allowed opacity-50 hover:scale-100' : ''}`}
-                    disabled={themeMode !== 'custom'}
-                    onClick={() => setCustomSecondary(color)}
+                    } ${!paletteEditable ? 'cursor-not-allowed opacity-50 hover:scale-100' : ''}`}
+                    disabled={!paletteEditable}
+                    onClick={() =>
+                      themeMode === 'dark'
+                        ? setDarkSecondary(color)
+                        : setLightSecondary(color)
+                    }
                     style={{ backgroundColor: color }}
                     type="button"
                   />
@@ -243,11 +252,11 @@ export function SettingsPanel() {
             </div>
           </div>
 
-          {themeMode !== 'custom' ? (
+          {!paletteEditable ? (
             <p className="text-xs text-[var(--muted-foreground)]">
               {t(
-                'Палитра применяется в режиме «Кастомная».',
-                'Palette is applied in "Custom" mode.',
+                'В режиме «Системная» настройте цвета отдельно во вкладках «Светлая» и «Тёмная».',
+                'In System mode, customize colors separately in Light and Dark modes.',
               )}
             </p>
           ) : null}

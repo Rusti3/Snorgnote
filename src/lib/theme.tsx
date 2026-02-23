@@ -4,9 +4,11 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react'
 
 import {
-  buildCustomThemeVars,
-  DEFAULT_CUSTOM_PRIMARY,
-  DEFAULT_CUSTOM_SECONDARY,
+  buildThemeVars,
+  DEFAULT_DARK_PRIMARY,
+  DEFAULT_DARK_SECONDARY,
+  DEFAULT_LIGHT_PRIMARY,
+  DEFAULT_LIGHT_SECONDARY,
   normalizePaletteColor,
   normalizeThemeMode,
   PRIMARY_COLOR_PALETTE,
@@ -16,54 +18,77 @@ import {
 import type { ResolvedTheme, ThemeMode } from './theme-utils'
 
 const THEME_MODE_KEY = 'snorgnote.theme_mode'
-const CUSTOM_PRIMARY_KEY = 'snorgnote.custom_primary'
-const CUSTOM_SECONDARY_KEY = 'snorgnote.custom_secondary'
+const LIGHT_PRIMARY_KEY = 'snorgnote.light_primary'
+const LIGHT_SECONDARY_KEY = 'snorgnote.light_secondary'
+const DARK_PRIMARY_KEY = 'snorgnote.dark_primary'
+const DARK_SECONDARY_KEY = 'snorgnote.dark_secondary'
+const LEGACY_CUSTOM_PRIMARY_KEY = 'snorgnote.custom_primary'
+const LEGACY_CUSTOM_SECONDARY_KEY = 'snorgnote.custom_secondary'
 const DARK_MEDIA_QUERY = '(prefers-color-scheme: dark)'
 
 type ThemeContextValue = {
   themeMode: ThemeMode
   resolvedTheme: ResolvedTheme
   setThemeMode: (next: ThemeMode) => void
-  customPrimary: string
-  customSecondary: string
-  setCustomPrimary: (next: string) => void
-  setCustomSecondary: (next: string) => void
+  lightPrimary: string
+  lightSecondary: string
+  darkPrimary: string
+  darkSecondary: string
+  setLightPrimary: (next: string) => void
+  setLightSecondary: (next: string) => void
+  setDarkPrimary: (next: string) => void
+  setDarkSecondary: (next: string) => void
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
 function detectInitialThemeMode(): ThemeMode {
   if (typeof window === 'undefined') return 'system'
-  return normalizeThemeMode(window.localStorage.getItem(THEME_MODE_KEY))
+  const raw = window.localStorage.getItem(THEME_MODE_KEY)
+  if (raw === 'custom') return 'light'
+  return normalizeThemeMode(raw)
 }
 
-function detectInitialCustomPrimary(): string {
-  if (typeof window === 'undefined') return DEFAULT_CUSTOM_PRIMARY
-  return normalizePaletteColor(
-    window.localStorage.getItem(CUSTOM_PRIMARY_KEY),
-    PRIMARY_COLOR_PALETTE,
-    DEFAULT_CUSTOM_PRIMARY,
-  )
-}
-
-function detectInitialCustomSecondary(): string {
-  if (typeof window === 'undefined') return DEFAULT_CUSTOM_SECONDARY
-  return normalizePaletteColor(
-    window.localStorage.getItem(CUSTOM_SECONDARY_KEY),
-    SECONDARY_COLOR_PALETTE,
-    DEFAULT_CUSTOM_SECONDARY,
-  )
+function detectInitialPaletteColor(
+  key: string,
+  palette: readonly string[],
+  fallback: string,
+): string {
+  if (typeof window === 'undefined') return fallback
+  return normalizePaletteColor(window.localStorage.getItem(key), palette, fallback)
 }
 
 export function ThemeProvider(props: { children: ReactNode }) {
   const [themeMode, setThemeMode] = useState<ThemeMode>(() =>
     detectInitialThemeMode(),
   )
-  const [customPrimary, setCustomPrimaryState] = useState<string>(() =>
-    detectInitialCustomPrimary(),
+  const [lightPrimary, setLightPrimaryState] = useState<string>(() =>
+    detectInitialPaletteColor(
+      LIGHT_PRIMARY_KEY,
+      PRIMARY_COLOR_PALETTE,
+      DEFAULT_LIGHT_PRIMARY,
+    ),
   )
-  const [customSecondary, setCustomSecondaryState] = useState<string>(() =>
-    detectInitialCustomSecondary(),
+  const [lightSecondary, setLightSecondaryState] = useState<string>(() =>
+    detectInitialPaletteColor(
+      LIGHT_SECONDARY_KEY,
+      SECONDARY_COLOR_PALETTE,
+      DEFAULT_LIGHT_SECONDARY,
+    ),
+  )
+  const [darkPrimary, setDarkPrimaryState] = useState<string>(() =>
+    detectInitialPaletteColor(
+      DARK_PRIMARY_KEY,
+      PRIMARY_COLOR_PALETTE,
+      DEFAULT_DARK_PRIMARY,
+    ),
+  )
+  const [darkSecondary, setDarkSecondaryState] = useState<string>(() =>
+    detectInitialPaletteColor(
+      DARK_SECONDARY_KEY,
+      SECONDARY_COLOR_PALETTE,
+      DEFAULT_DARK_SECONDARY,
+    ),
   )
   const [prefersDark, setPrefersDark] = useState<boolean>(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return false
@@ -80,6 +105,17 @@ export function ThemeProvider(props: { children: ReactNode }) {
     return () => media.removeEventListener('change', onChange)
   }, [])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.removeItem(LEGACY_CUSTOM_PRIMARY_KEY)
+    window.localStorage.removeItem(LEGACY_CUSTOM_SECONDARY_KEY)
+
+    const rawMode = window.localStorage.getItem(THEME_MODE_KEY)
+    if (rawMode === 'custom') {
+      window.localStorage.setItem(THEME_MODE_KEY, 'light')
+    }
+  }, [])
+
   const resolvedTheme = useMemo<ResolvedTheme>(
     () => resolveThemeMode(themeMode, prefersDark),
     [prefersDark, themeMode],
@@ -93,54 +129,91 @@ export function ThemeProvider(props: { children: ReactNode }) {
   useEffect(() => {
     if (typeof window === 'undefined') return
     window.localStorage.setItem(
-      CUSTOM_PRIMARY_KEY,
+      LIGHT_PRIMARY_KEY,
       normalizePaletteColor(
-        customPrimary,
+        lightPrimary,
         PRIMARY_COLOR_PALETTE,
-        DEFAULT_CUSTOM_PRIMARY,
+        DEFAULT_LIGHT_PRIMARY,
       ),
     )
-  }, [customPrimary])
+  }, [lightPrimary])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     window.localStorage.setItem(
-      CUSTOM_SECONDARY_KEY,
+      LIGHT_SECONDARY_KEY,
       normalizePaletteColor(
-        customSecondary,
+        lightSecondary,
         SECONDARY_COLOR_PALETTE,
-        DEFAULT_CUSTOM_SECONDARY,
+        DEFAULT_LIGHT_SECONDARY,
       ),
     )
-  }, [customSecondary])
+  }, [lightSecondary])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(
+      DARK_PRIMARY_KEY,
+      normalizePaletteColor(
+        darkPrimary,
+        PRIMARY_COLOR_PALETTE,
+        DEFAULT_DARK_PRIMARY,
+      ),
+    )
+  }, [darkPrimary])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(
+      DARK_SECONDARY_KEY,
+      normalizePaletteColor(
+        darkSecondary,
+        SECONDARY_COLOR_PALETTE,
+        DEFAULT_DARK_SECONDARY,
+      ),
+    )
+  }, [darkSecondary])
 
   useEffect(() => {
     const root = document.documentElement
     root.setAttribute('data-theme', resolvedTheme)
     root.style.colorScheme = resolvedTheme
 
-    const customVars = buildCustomThemeVars(customPrimary, customSecondary)
-    const customKeys = Object.keys(customVars)
-    if (themeMode === 'custom') {
-      for (const [key, value] of Object.entries(customVars)) {
-        root.style.setProperty(key, value)
-      }
-    } else {
-      for (const key of customKeys) {
-        root.style.removeProperty(key)
-      }
-    }
-  }, [customPrimary, customSecondary, resolvedTheme, themeMode])
+    const activePrimary = resolvedTheme === 'dark' ? darkPrimary : lightPrimary
+    const activeSecondary =
+      resolvedTheme === 'dark' ? darkSecondary : lightSecondary
 
-  const setCustomPrimary = useCallback((next: string) => {
-    setCustomPrimaryState(
-      normalizePaletteColor(next, PRIMARY_COLOR_PALETTE, DEFAULT_CUSTOM_PRIMARY),
+    const vars = buildThemeVars(resolvedTheme, activePrimary, activeSecondary)
+    for (const [key, value] of Object.entries(vars)) {
+      root.style.setProperty(key, value)
+    }
+  }, [darkPrimary, darkSecondary, lightPrimary, lightSecondary, resolvedTheme])
+
+  const setLightPrimary = useCallback((next: string) => {
+    setLightPrimaryState(
+      normalizePaletteColor(next, PRIMARY_COLOR_PALETTE, DEFAULT_LIGHT_PRIMARY),
     )
   }, [])
 
-  const setCustomSecondary = useCallback((next: string) => {
-    setCustomSecondaryState(
-      normalizePaletteColor(next, SECONDARY_COLOR_PALETTE, DEFAULT_CUSTOM_SECONDARY),
+  const setLightSecondary = useCallback((next: string) => {
+    setLightSecondaryState(
+      normalizePaletteColor(
+        next,
+        SECONDARY_COLOR_PALETTE,
+        DEFAULT_LIGHT_SECONDARY,
+      ),
+    )
+  }, [])
+
+  const setDarkPrimary = useCallback((next: string) => {
+    setDarkPrimaryState(
+      normalizePaletteColor(next, PRIMARY_COLOR_PALETTE, DEFAULT_DARK_PRIMARY),
+    )
+  }, [])
+
+  const setDarkSecondary = useCallback((next: string) => {
+    setDarkSecondaryState(
+      normalizePaletteColor(next, SECONDARY_COLOR_PALETTE, DEFAULT_DARK_SECONDARY),
     )
   }, [])
 
@@ -149,17 +222,25 @@ export function ThemeProvider(props: { children: ReactNode }) {
       themeMode,
       resolvedTheme,
       setThemeMode,
-      customPrimary,
-      customSecondary,
-      setCustomPrimary,
-      setCustomSecondary,
+      lightPrimary,
+      lightSecondary,
+      darkPrimary,
+      darkSecondary,
+      setLightPrimary,
+      setLightSecondary,
+      setDarkPrimary,
+      setDarkSecondary,
     }),
     [
-      customPrimary,
-      customSecondary,
+      darkPrimary,
+      darkSecondary,
+      lightPrimary,
+      lightSecondary,
       resolvedTheme,
-      setCustomPrimary,
-      setCustomSecondary,
+      setDarkPrimary,
+      setDarkSecondary,
+      setLightPrimary,
+      setLightSecondary,
       themeMode,
     ],
   )

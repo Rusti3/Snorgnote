@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildThemeVars,
   buildWindowTitle,
-  buildCustomThemeVars,
-  DEFAULT_CUSTOM_PRIMARY,
-  DEFAULT_CUSTOM_SECONDARY,
+  DEFAULT_DARK_PRIMARY,
+  DEFAULT_DARK_SECONDARY,
+  DEFAULT_LIGHT_PRIMARY,
+  DEFAULT_LIGHT_SECONDARY,
   normalizePaletteColor,
   normalizeThemeMode,
   PRIMARY_COLOR_PALETTE,
@@ -19,7 +21,7 @@ describe('theme-utils', () => {
     expect(normalizeThemeMode('light')).toBe('light')
     expect(normalizeThemeMode('dark')).toBe('dark')
     expect(normalizeThemeMode('system')).toBe('system')
-    expect(normalizeThemeMode('custom')).toBe('custom')
+    expect(normalizeThemeMode('custom')).toBe('system')
     expect(normalizeThemeMode('invalid-mode')).toBe('system')
   })
 
@@ -28,18 +30,15 @@ describe('theme-utils', () => {
     expect(resolveThemeMode('dark', false)).toBe('dark')
     expect(resolveThemeMode('system', true)).toBe('dark')
     expect(resolveThemeMode('system', false)).toBe('light')
-    expect(resolveThemeMode('custom', true)).toBe('light')
   })
 
   it('returns localized labels for theme mode', () => {
     expect(themeModeLabel('system', 'ru')).toBe('Системная')
     expect(themeModeLabel('light', 'ru')).toBe('Светлая')
     expect(themeModeLabel('dark', 'ru')).toBe('Тёмная')
-    expect(themeModeLabel('custom', 'ru')).toBe('Кастомная')
     expect(themeModeLabel('system', 'en')).toBe('System')
     expect(themeModeLabel('light', 'en')).toBe('Light')
     expect(themeModeLabel('dark', 'en')).toBe('Dark')
-    expect(themeModeLabel('custom', 'en')).toBe('Custom')
   })
 
   it('builds localized window title', () => {
@@ -54,12 +53,12 @@ describe('theme-utils', () => {
     )
   })
 
-  it('normalizes custom palette values to known options', () => {
+  it('normalizes palette values to known options', () => {
     expect(
       normalizePaletteColor(
         PRIMARY_COLOR_PALETTE[1],
         PRIMARY_COLOR_PALETTE,
-        DEFAULT_CUSTOM_PRIMARY,
+        DEFAULT_LIGHT_PRIMARY,
       ),
     ).toBe(PRIMARY_COLOR_PALETTE[1])
 
@@ -67,21 +66,21 @@ describe('theme-utils', () => {
       normalizePaletteColor(
         '#invalid',
         PRIMARY_COLOR_PALETTE,
-        DEFAULT_CUSTOM_PRIMARY,
+        DEFAULT_LIGHT_PRIMARY,
       ),
-    ).toBe(DEFAULT_CUSTOM_PRIMARY)
+    ).toBe(DEFAULT_LIGHT_PRIMARY)
 
     expect(
       normalizePaletteColor(
         SECONDARY_COLOR_PALETTE[2],
         SECONDARY_COLOR_PALETTE,
-        DEFAULT_CUSTOM_SECONDARY,
+        DEFAULT_LIGHT_SECONDARY,
       ),
     ).toBe(SECONDARY_COLOR_PALETTE[2])
   })
 
-  it('builds css vars for custom theme', () => {
-    const vars = buildCustomThemeVars('#2f6f44', '#f4e8cb')
+  it('builds css vars for light mode', () => {
+    const vars = buildThemeVars('light', '#2f6f44', '#f4e8cb')
 
     // Secondary controls actionable UI colors (buttons, active states)
     expect(vars['--primary']).toBe('#f4e8cb')
@@ -95,5 +94,44 @@ describe('theme-utils', () => {
     expect(vars['--surface-gradient']).toContain('linear-gradient')
     expect(vars['--bg-radial-1']).toContain('rgba(')
     expect(vars['--bg-radial-2']).toContain('rgba(')
+  })
+
+  it('builds css vars for dark mode', () => {
+    const vars = buildThemeVars('dark', '#2f6f44', '#d0d4e8')
+
+    // Secondary controls actionable UI colors (buttons, active states)
+    expect(vars['--primary']).toBe('#d0d4e8')
+
+    // Dark palette remains dark for the app background/titlebar
+    expect(vars['--background']).toMatch(/^#[0-9a-f]{6}$/i)
+    expect(vars['--titlebar-bg']).toMatch(/^#[0-9a-f]{6}$/i)
+    expect(vars['--background']).not.toBe(vars['--card'])
+
+    const backgroundHex = vars['--background']
+    const parsed = Number.parseInt(backgroundHex.replace('#', ''), 16)
+    expect(parsed).toBeLessThan(0x444444)
+  })
+
+  it('falls back to mode defaults for invalid hex colors', () => {
+    const lightVars = buildThemeVars('light', 'oops', 'bad')
+    const darkVars = buildThemeVars('dark', 'oops', 'bad')
+
+    expect(lightVars['--primary']).toBe(DEFAULT_LIGHT_SECONDARY)
+    expect(darkVars['--primary']).toBe(DEFAULT_DARK_SECONDARY)
+    expect(lightVars['--background']).not.toBe(darkVars['--background'])
+
+    const baselineLight = buildThemeVars(
+      'light',
+      DEFAULT_LIGHT_PRIMARY,
+      DEFAULT_LIGHT_SECONDARY,
+    )
+    const baselineDark = buildThemeVars(
+      'dark',
+      DEFAULT_DARK_PRIMARY,
+      DEFAULT_DARK_SECONDARY,
+    )
+
+    expect(lightVars['--background']).toBe(baselineLight['--background'])
+    expect(darkVars['--background']).toBe(baselineDark['--background'])
   })
 })

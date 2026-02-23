@@ -90,8 +90,8 @@ export default function App() {
             <h2 className="font-display text-2xl font-semibold">{title}</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
               {t(
-                'v0.1.12: добавлена 4-я тема «Кастомная» с выбором основного и дополнительного цвета из палитры.',
-                'v0.1.12: added the 4th "Custom" theme with selectable primary and secondary palette colors.',
+                'v0.1.13: добавлен live-preview кастомной темы и разделение ролей цветов (основной: фон/titlebar, дополнительный: кнопки/акценты).',
+                'v0.1.13: added custom theme live preview and split color roles (primary: background/titlebar, secondary: buttons/accents).',
               )}
             </p>
           </Card>

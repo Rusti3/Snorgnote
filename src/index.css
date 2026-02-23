@@ -8,6 +8,7 @@
   --muted: #ebe8dc;
   --muted-foreground: #546156;
   --border: #c6ccb8;
+  --titlebar-bg: #fffef7;
   --primary: #2f6f44;
   --primary-foreground: #f4fff7;
   --danger: #bc3f2f;
@@ -24,6 +25,7 @@
   --muted: #202722;
   --muted-foreground: #9db19f;
   --border: #324136;
+  --titlebar-bg: #1a201c;
   --primary: #66b580;
   --primary-foreground: #102218;
   --danger: #df6f63;

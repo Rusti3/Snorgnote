@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { CSSProperties } from 'react'
 
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
@@ -6,7 +7,11 @@ import { Card } from '../components/ui/card'
 import { api } from '../lib/api'
 import { useLocale } from '../lib/locale'
 import { useTheme } from '../lib/theme'
-import { PRIMARY_COLOR_PALETTE, SECONDARY_COLOR_PALETTE } from '../lib/theme-utils'
+import {
+  buildCustomThemeVars,
+  PRIMARY_COLOR_PALETTE,
+  SECONDARY_COLOR_PALETTE,
+} from '../lib/theme-utils'
 import type {
   TelegramPollReport,
   TelegramStatus,
@@ -31,6 +36,17 @@ export function SettingsPanel() {
   const [pollReport, setPollReport] = useState<TelegramPollReport | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [previewPrimary, setPreviewPrimary] = useState<string | null>(null)
+  const [previewSecondary, setPreviewSecondary] = useState<string | null>(null)
+
+  const previewVars = useMemo<CSSProperties>(
+    () =>
+      buildCustomThemeVars(
+        previewPrimary ?? customPrimary,
+        previewSecondary ?? customSecondary,
+      ) as CSSProperties,
+    [customPrimary, customSecondary, previewPrimary, previewSecondary],
+  )
 
   const loadStatus = useCallback(async () => {
     setError(null)
@@ -193,7 +209,7 @@ export function SettingsPanel() {
         <div className="mt-4 space-y-3">
           <div>
             <p className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
-              {t('Основной цвет', 'Primary color')}
+              {t('Основной цвет (фон и titlebar)', 'Primary color (background + titlebar)')}
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {PRIMARY_COLOR_PALETTE.map((color) => {
@@ -208,6 +224,8 @@ export function SettingsPanel() {
                         : 'border-[var(--border)]'
                     } ${themeMode !== 'custom' ? 'cursor-not-allowed opacity-50 hover:scale-100' : ''}`}
                     disabled={themeMode !== 'custom'}
+                    onMouseEnter={() => setPreviewPrimary(color)}
+                    onMouseLeave={() => setPreviewPrimary(null)}
                     onClick={() => setCustomPrimary(color)}
                     style={{ backgroundColor: color }}
                     type="button"
@@ -219,7 +237,7 @@ export function SettingsPanel() {
 
           <div>
             <p className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
-              {t('Дополнительный цвет', 'Secondary color')}
+              {t('Дополнительный цвет (кнопки и акценты)', 'Secondary color (buttons + accents)')}
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {SECONDARY_COLOR_PALETTE.map((color) => {
@@ -234,12 +252,41 @@ export function SettingsPanel() {
                         : 'border-[var(--border)]'
                     } ${themeMode !== 'custom' ? 'cursor-not-allowed opacity-50 hover:scale-100' : ''}`}
                     disabled={themeMode !== 'custom'}
+                    onMouseEnter={() => setPreviewSecondary(color)}
+                    onMouseLeave={() => setPreviewSecondary(null)}
                     onClick={() => setCustomSecondary(color)}
                     style={{ backgroundColor: color }}
                     type="button"
                   />
                 )
               })}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
+              {t('Live-preview темы', 'Theme live preview')}
+            </p>
+            <div
+              className="mt-2 overflow-hidden rounded-lg border border-[var(--border)]"
+              style={previewVars}
+            >
+              <div className="flex h-8 items-center border-b border-[var(--border)] bg-[var(--titlebar-bg)] px-3 text-xs text-[var(--muted-foreground)]">
+                Snorgnote
+              </div>
+              <div className="space-y-2 bg-[var(--background)] p-3 text-[var(--foreground)]">
+                <div className="rounded-md border border-[var(--border)] bg-[var(--card)] px-2 py-1 text-xs">
+                  {t('Фон + titlebar берутся из основного цвета.', 'Background + titlebar use primary color.')}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-md bg-[var(--primary)] px-3 py-1 text-xs font-semibold text-[var(--primary-foreground)]">
+                    {t('Кнопка', 'Button')}
+                  </span>
+                  <span className="rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-1 text-xs">
+                    {t('Карточка', 'Card')}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 

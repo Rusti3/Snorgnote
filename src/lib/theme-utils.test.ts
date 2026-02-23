@@ -83,8 +83,15 @@ describe('theme-utils', () => {
   it('builds css vars for custom theme', () => {
     const vars = buildCustomThemeVars('#2f6f44', '#f4e8cb')
 
-    expect(vars['--primary']).toBe('#2f6f44')
-    expect(vars['--primary-foreground']).toBe('#ffffff')
+    // Secondary controls actionable UI colors (buttons, active states)
+    expect(vars['--primary']).toBe('#f4e8cb')
+    expect(vars['--primary-foreground']).toBe('#102218')
+
+    // Primary controls structural/background colors
+    expect(vars['--background']).toMatch(/^#[0-9a-f]{6}$/i)
+    expect(vars['--titlebar-bg']).toMatch(/^#[0-9a-f]{6}$/i)
+    expect(vars['--card']).toMatch(/^#[0-9a-f]{6}$/i)
+
     expect(vars['--surface-gradient']).toContain('linear-gradient')
     expect(vars['--bg-radial-1']).toContain('rgba(')
     expect(vars['--bg-radial-2']).toContain('rgba(')

@@ -79,12 +79,27 @@ export function buildCustomThemeVars(
 ): Record<string, string> {
   const safePrimary = isHexColor(primary) ? primary : DEFAULT_CUSTOM_PRIMARY
   const safeSecondary = isHexColor(secondary) ? secondary : DEFAULT_CUSTOM_SECONDARY
+  const background = tint(safePrimary, 0.9)
+  const card = tint(safePrimary, 0.95)
+  const muted = tint(safePrimary, 0.86)
+  const border = tint(safePrimary, 0.72)
+  const titlebar = tint(safePrimary, 0.8)
+  const foreground = readableOnColor(background)
+  const mutedForeground = mixHex(safePrimary, foreground, 0.62)
+
   return {
-    '--primary': safePrimary,
-    '--primary-foreground': readableOnColor(safePrimary),
-    '--surface-gradient': `linear-gradient(135deg, ${rgba(safePrimary, 0.24)} 0%, ${rgba(safeSecondary, 0.24)} 100%)`,
+    '--background': background,
+    '--foreground': foreground,
+    '--card': card,
+    '--muted': muted,
+    '--muted-foreground': mutedForeground,
+    '--border': border,
+    '--titlebar-bg': titlebar,
+    '--primary': safeSecondary,
+    '--primary-foreground': readableOnColor(safeSecondary),
+    '--surface-gradient': `linear-gradient(135deg, ${rgba(safePrimary, 0.24)} 0%, ${rgba(tint(safePrimary, 0.68), 0.24)} 100%)`,
     '--bg-radial-1': rgba(safePrimary, 0.24),
-    '--bg-radial-2': rgba(safeSecondary, 0.2),
+    '--bg-radial-2': rgba(shade(safePrimary, 0.18), 0.2),
   }
 }
 
@@ -106,6 +121,34 @@ function rgb(hexColor: string): [number, number, number] {
 function rgba(hexColor: string, alpha: number): string {
   const [r, g, b] = rgb(hexColor)
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+function tint(hexColor: string, amount: number): string {
+  return mixHex(hexColor, '#ffffff', amount)
+}
+
+function shade(hexColor: string, amount: number): string {
+  return mixHex(hexColor, '#000000', amount)
+}
+
+function mixHex(hexA: string, hexB: string, amount: number): string {
+  const [ar, ag, ab] = rgb(hexA)
+  const [br, bg, bb] = rgb(hexB)
+  const ratio = clamp01(amount)
+  const r = Math.round(ar + (br - ar) * ratio)
+  const g = Math.round(ag + (bg - ag) * ratio)
+  const b = Math.round(ab + (bb - ab) * ratio)
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+}
+
+function toHex(value: number): string {
+  return value.toString(16).padStart(2, '0')
+}
+
+function clamp01(value: number): number {
+  if (value < 0) return 0
+  if (value > 1) return 1
+  return value
 }
 
 function readableOnColor(hexColor: string): string {

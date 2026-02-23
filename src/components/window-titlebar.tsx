@@ -101,7 +101,7 @@ export function WindowTitlebar() {
   )
 
   return (
-    <div className="sticky top-0 z-50 flex h-11 items-center border-b border-[var(--border)] bg-[var(--card)]/95 backdrop-blur">
+    <div className="sticky top-0 z-50 flex h-11 items-center border-b border-[var(--border)] bg-[var(--titlebar-bg)]/95 backdrop-blur">
       <div
         className="flex min-w-0 flex-1 select-none items-center px-3"
         data-tauri-drag-region

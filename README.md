@@ -12,7 +12,7 @@
 
 ## Статус
 
-Текущая версия: `v0.1.25`.
+Текущая версия: `v0.1.26`.
 
 Реализовано:
 
@@ -259,4 +259,17 @@ npm run dev
 - `src/features/projects-panel.test.tsx` (фильтрация и CRUD задач).
 - Для component-тестов подключены dev-зависимости:
 - `@testing-library/react`, `@testing-library/user-event`, `jsdom`.
+
+### v0.1.26
+
+- В `Projects` добавлена пагинация деталей проекта:
+- backend `projects_list_details` теперь принимает `notes_limit/offset` и `tasks_limit/offset`, а в ответе возвращает `notes_total/tasks_total` и параметры страницы;
+- добавлена поддержка `limit = 0` для выборки только заметок или только задач.
+- В UI `Projects` добавлены кнопки `Load more notes` и `Load more tasks` для дозагрузки данных внутри раскрытого проекта.
+- CRUD задач в `Projects` переведён на optimistic update:
+- создание, обновление и удаление задачи теперь моментально отражаются в интерфейсе;
+- вместо полного `loadAll()` выполняется синхронизация только изменённого проекта.
+- Обновлены тесты:
+- frontend: `projects-panel.test.tsx` (optimistic delete + load more), `api-projects.test.ts` (пагинация и `limit=0`);
+- backend: `core::projects::tests::projects_list_details_supports_pagination` (доп. проверка `limit=0`).
 

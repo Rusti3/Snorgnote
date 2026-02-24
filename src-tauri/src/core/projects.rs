@@ -189,16 +189,37 @@ impl AppState {
         Ok(ProjectAssignNotesReport { updated, skipped })
     }
 
-    pub fn projects_list_details(&self) -> Result<Vec<ProjectDetails>> {
-        let projects = self.projects_state()?;
+    pub fn projects_list_details(
+        &self,
+        project_id: Option<String>,
+        notes_limit: u32,
+        notes_offset: u32,
+        tasks_limit: u32,
+        tasks_offset: u32,
+    ) -> Result<Vec<ProjectDetails>> {
         let conn = self.conn()?;
+        let normalized_notes_limit = notes_limit.min(500);
+        let normalized_notes_offset = notes_offset;
+        let normalized_tasks_limit = tasks_limit.min(500);
+        let normalized_tasks_offset = tasks_offset;
+
+        let project_filter_id = match project_id.as_deref().map(str::trim) {
+            Some(value) if !value.is_empty() => {
+                Some(self.resolve_existing_project_id(&conn, value)?)
+            }
+            _ => None,
+        };
+        let mut projects = self.projects_state()?;
+        if let Some(project_id) = project_filter_id {
+            projects.retain(|project| project.id == project_id);
+        }
 
         let mut notes_stmt = conn.prepare(
             "SELECT id, path, title, updated_at, body_md
              FROM notes
              WHERE project_id = ?1
              ORDER BY updated_at DESC
-             LIMIT 400",
+             LIMIT ?2 OFFSET ?3",
         )?;
         let mut tasks_stmt = conn.prepare(
             "SELECT id, title, status, energy, due_at, updated_at
@@ -208,39 +229,70 @@ impl AppState {
                CASE status WHEN 'todo' THEN 0 WHEN 'in_progress' THEN 1 WHEN 'done' THEN 2 ELSE 3 END,
                COALESCE(due_at, '9999-12-31T23:59:59Z') ASC,
                updated_at DESC
-             LIMIT 400",
+             LIMIT ?2 OFFSET ?3",
         )?;
 
         let mut details = Vec::with_capacity(projects.len());
         for project in projects {
+            let notes_total: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM notes WHERE project_id = ?1",
+                params![project.id.clone()],
+                |row| row.get(0),
+            )?;
+            let tasks_total: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM tasks WHERE project_id = ?1",
+                params![project.id.clone()],
+                |row| row.get(0),
+            )?;
+
             let notes = notes_stmt
-                .query_map(params![project.id.clone()], |row| {
-                    let body_md: String = row.get(4)?;
-                    Ok(ProjectNoteBlock {
-                        id: row.get(0)?,
-                        path: row.get(1)?,
-                        title: row.get(2)?,
-                        updated_at: row.get(3)?,
-                        preview_md: note_preview(&body_md),
-                    })
-                })?
+                .query_map(
+                    params![
+                        project.id.clone(),
+                        i64::from(normalized_notes_limit),
+                        i64::from(normalized_notes_offset)
+                    ],
+                    |row| {
+                        let body_md: String = row.get(4)?;
+                        Ok(ProjectNoteBlock {
+                            id: row.get(0)?,
+                            path: row.get(1)?,
+                            title: row.get(2)?,
+                            updated_at: row.get(3)?,
+                            preview_md: note_preview(&body_md),
+                        })
+                    },
+                )?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
 
             let tasks = tasks_stmt
-                .query_map(params![project.id.clone()], |row| {
-                    Ok(ProjectTaskView {
-                        id: row.get(0)?,
-                        title: row.get(1)?,
-                        status: row.get(2)?,
-                        energy: row.get(3)?,
-                        due_at: row.get(4)?,
-                        updated_at: row.get(5)?,
-                    })
-                })?
+                .query_map(
+                    params![
+                        project.id.clone(),
+                        i64::from(normalized_tasks_limit),
+                        i64::from(normalized_tasks_offset)
+                    ],
+                    |row| {
+                        Ok(ProjectTaskView {
+                            id: row.get(0)?,
+                            title: row.get(1)?,
+                            status: row.get(2)?,
+                            energy: row.get(3)?,
+                            due_at: row.get(4)?,
+                            updated_at: row.get(5)?,
+                        })
+                    },
+                )?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
 
             details.push(ProjectDetails {
                 project,
+                notes_total,
+                tasks_total,
+                notes_limit: normalized_notes_limit,
+                notes_offset: normalized_notes_offset,
+                tasks_limit: normalized_tasks_limit,
+                tasks_offset: normalized_tasks_offset,
                 notes,
                 tasks,
             });
@@ -446,7 +498,7 @@ mod tests {
         assert_eq!(updated.energy, "low");
         assert!(updated.due_at.is_none());
 
-        let details = state.projects_list_details()?;
+        let details = state.projects_list_details(None, 50, 0, 50, 0)?;
         let life = details
             .into_iter()
             .find(|item| item.project.id == "project_life")
@@ -456,7 +508,7 @@ mod tests {
         assert!(life.tasks.iter().any(|task| task.id == created.id));
 
         state.projects_task_delete(created.id.clone())?;
-        let details_after_delete = state.projects_list_details()?;
+        let details_after_delete = state.projects_list_details(None, 50, 0, 50, 0)?;
         let life_after_delete = details_after_delete
             .into_iter()
             .find(|item| item.project.id == "project_life")
@@ -497,6 +549,65 @@ mod tests {
             .expect_err("must reject unsupported energy")
             .to_string()
             .contains("invalid task energy"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn projects_list_details_supports_pagination() -> Result<()> {
+        let temp = tempdir()?;
+        let state = AppState::for_test(temp.path())?;
+        let _ = state.vault_save_note("Notes/pag-a.md", "# A\n\none")?;
+        let _ = state.vault_save_note("Notes/pag-b.md", "# B\n\ntwo")?;
+        let _ = state.vault_save_note("Notes/pag-c.md", "# C\n\nthree")?;
+        let _ = state.projects_assign_notes(
+            "project_life".to_string(),
+            vec![
+                "Notes/pag-a.md".to_string(),
+                "Notes/pag-b.md".to_string(),
+                "Notes/pag-c.md".to_string(),
+            ],
+        )?;
+
+        let _ = state.projects_task_create(
+            "project_life".to_string(),
+            "Task 1".to_string(),
+            Some("todo".to_string()),
+            Some("medium".to_string()),
+            None,
+        )?;
+        let _ = state.projects_task_create(
+            "project_life".to_string(),
+            "Task 2".to_string(),
+            Some("todo".to_string()),
+            Some("medium".to_string()),
+            None,
+        )?;
+        let _ = state.projects_task_create(
+            "project_life".to_string(),
+            "Task 3".to_string(),
+            Some("done".to_string()),
+            Some("low".to_string()),
+            None,
+        )?;
+
+        let page = state.projects_list_details(Some("project_life".to_string()), 1, 1, 1, 1)?;
+        assert_eq!(page.len(), 1);
+        let life = &page[0];
+        assert_eq!(life.project.id, "project_life");
+        assert_eq!(life.notes_total, 3);
+        assert_eq!(life.tasks_total, 3);
+        assert_eq!(life.notes_limit, 1);
+        assert_eq!(life.tasks_limit, 1);
+        assert_eq!(life.notes_offset, 1);
+        assert_eq!(life.tasks_offset, 1);
+        assert_eq!(life.notes.len(), 1);
+        assert_eq!(life.tasks.len(), 1);
+
+        let notes_only =
+            state.projects_list_details(Some("project_life".to_string()), 1, 0, 0, 0)?;
+        assert_eq!(notes_only[0].notes.len(), 1);
+        assert_eq!(notes_only[0].tasks.len(), 0);
 
         Ok(())
     }

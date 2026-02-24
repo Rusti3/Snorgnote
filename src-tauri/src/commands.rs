@@ -338,9 +338,20 @@ pub fn projects_get_state(
 #[tauri::command]
 pub fn projects_list_details(
     state: State<'_, AppState>,
+    project_id: Option<String>,
+    notes_limit: Option<u32>,
+    notes_offset: Option<u32>,
+    tasks_limit: Option<u32>,
+    tasks_offset: Option<u32>,
 ) -> Result<Vec<crate::core::ProjectDetails>, String> {
     state
-        .projects_list_details()
+        .projects_list_details(
+            project_id,
+            notes_limit.unwrap_or(50),
+            notes_offset.unwrap_or(0),
+            tasks_limit.unwrap_or(50),
+            tasks_offset.unwrap_or(0),
+        )
         .map_err(|error| error.to_string())
 }
 

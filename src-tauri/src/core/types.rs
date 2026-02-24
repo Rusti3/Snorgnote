@@ -227,6 +227,12 @@ pub struct ProjectTaskView {
 #[derive(Debug, Clone, Serialize)]
 pub struct ProjectDetails {
     pub project: ProjectState,
+    pub notes_total: i64,
+    pub tasks_total: i64,
+    pub notes_limit: u32,
+    pub notes_offset: u32,
+    pub tasks_limit: u32,
+    pub tasks_offset: u32,
     pub notes: Vec<ProjectNoteBlock>,
     pub tasks: Vec<ProjectTaskView>,
 }

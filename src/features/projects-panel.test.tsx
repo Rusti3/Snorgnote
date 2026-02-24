@@ -7,6 +7,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleProvider } from '../lib/locale'
 import { ProjectsPanel } from './projects-panel'
 
+function deferred<T>() {
+  let resolve: (value: T) => void = () => undefined
+  let reject: (reason?: unknown) => void = () => undefined
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
 const apiMock = vi.hoisted(() => ({
   projectsListDetails: vi.fn(),
   skillsList: vi.fn(),
@@ -47,6 +57,12 @@ describe('ProjectsPanel', () => {
           open_tasks: 1,
           done_today: 1,
         },
+        notes_total: 2,
+        tasks_total: 2,
+        notes_limit: 30,
+        notes_offset: 0,
+        tasks_limit: 30,
+        tasks_offset: 0,
         notes: [
           {
             id: 'note-1',
@@ -184,12 +200,165 @@ describe('ProjectsPanel', () => {
       })
     })
 
+    const pendingDelete = deferred<void>()
+    apiMock.projectsTaskDelete.mockReturnValueOnce(pendingDelete.promise)
     const deleteInput = screen.getByDisplayValue('Ship release')
     const deleteRow = deleteInput.closest('div')
     expect(deleteRow).toBeTruthy()
     await user.click(within(deleteRow as HTMLElement).getByRole('button', { name: 'Delete' }))
+    expect(screen.queryByDisplayValue('Ship release')).toBeNull()
+    pendingDelete.resolve(undefined)
     await waitFor(() => {
       expect(apiMock.projectsTaskDelete).toHaveBeenCalledWith('task-2')
     })
+  })
+
+  it('loads more notes and tasks for a project', async () => {
+    const user = userEvent.setup()
+    apiMock.projectsListDetails
+      .mockResolvedValueOnce([
+        {
+          project: {
+            id: 'project_general',
+            slug: 'general',
+            name: 'General',
+            biome_type: 'mainland',
+            health: 50,
+            xp: 10,
+            level: 1,
+            open_tasks: 1,
+            done_today: 1,
+          },
+          notes_total: 3,
+          tasks_total: 3,
+          notes_limit: 30,
+          notes_offset: 0,
+          tasks_limit: 30,
+          tasks_offset: 0,
+          notes: [
+            {
+              id: 'note-1',
+              path: 'Notes/alpha.md',
+              title: 'Alpha note',
+              updated_at: '2026-02-24T00:00:00Z',
+              preview_md: 'alpha body',
+            },
+            {
+              id: 'note-2',
+              path: 'Notes/beta.md',
+              title: 'Beta note',
+              updated_at: '2026-02-24T00:00:00Z',
+              preview_md: 'beta body',
+            },
+          ],
+          tasks: [
+            {
+              id: 'task-1',
+              title: 'Write docs',
+              status: 'todo',
+              energy: 'medium',
+              due_at: undefined,
+              updated_at: '2026-02-24T00:00:00Z',
+            },
+            {
+              id: 'task-2',
+              title: 'Ship release',
+              status: 'done',
+              energy: 'high',
+              due_at: undefined,
+              updated_at: '2026-02-24T00:00:00Z',
+            },
+          ],
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          project: {
+            id: 'project_general',
+            slug: 'general',
+            name: 'General',
+            biome_type: 'mainland',
+            health: 50,
+            xp: 10,
+            level: 1,
+            open_tasks: 1,
+            done_today: 1,
+          },
+          notes_total: 3,
+          tasks_total: 3,
+          notes_limit: 30,
+          notes_offset: 2,
+          tasks_limit: 0,
+          tasks_offset: 0,
+          notes: [
+            {
+              id: 'note-3',
+              path: 'Notes/gamma.md',
+              title: 'Gamma note',
+              updated_at: '2026-02-24T00:00:00Z',
+              preview_md: 'gamma body',
+            },
+          ],
+          tasks: [],
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          project: {
+            id: 'project_general',
+            slug: 'general',
+            name: 'General',
+            biome_type: 'mainland',
+            health: 50,
+            xp: 10,
+            level: 1,
+            open_tasks: 1,
+            done_today: 1,
+          },
+          notes_total: 3,
+          tasks_total: 3,
+          notes_limit: 0,
+          notes_offset: 0,
+          tasks_limit: 30,
+          tasks_offset: 2,
+          notes: [],
+          tasks: [
+            {
+              id: 'task-3',
+              title: 'Plan retro',
+              status: 'todo',
+              energy: 'low',
+              due_at: undefined,
+              updated_at: '2026-02-24T00:00:00Z',
+            },
+          ],
+        },
+      ])
+    render(
+      <LocaleProvider>
+        <ProjectsPanel />
+      </LocaleProvider>,
+    )
+
+    await screen.findByText('Projects / Sub-worlds')
+    await user.click(screen.getByRole('button', { name: 'toggle-project-project_general' }))
+
+    await user.click(screen.getByRole('button', { name: 'Load more notes' }))
+    await screen.findByText('Gamma note')
+    expect(apiMock.projectsListDetails).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: 'project_general',
+        notesOffset: 2,
+      }),
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Load more tasks' }))
+    await screen.findByDisplayValue('Plan retro')
+    expect(apiMock.projectsListDetails).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: 'project_general',
+        tasksOffset: 2,
+      }),
+    )
   })
 })

@@ -65,6 +65,13 @@ function normalizePageLimit(limit: number | undefined): number {
   return Math.max(1, Math.min(200, Math.floor(limit)))
 }
 
+function normalizeProjectSliceLimit(limit: number | undefined): number {
+  if (typeof limit !== 'number' || !Number.isFinite(limit)) {
+    return 20
+  }
+  return Math.max(0, Math.min(200, Math.floor(limit)))
+}
+
 function normalizePageOffset(offset: number | undefined): number {
   if (typeof offset !== 'number' || !Number.isFinite(offset)) {
     return 0
@@ -1052,16 +1059,38 @@ export const api = {
     })
   },
 
-  async projectsListDetails(): Promise<ProjectDetails[]> {
+  async projectsListDetails(input?: {
+    projectId?: string
+    notesLimit?: number
+    notesOffset?: number
+    tasksLimit?: number
+    tasksOffset?: number
+  }): Promise<ProjectDetails[]> {
+    const projectId = input?.projectId?.trim() || undefined
+    const notesLimit = normalizeProjectSliceLimit(input?.notesLimit)
+    const notesOffset = normalizePageOffset(input?.notesOffset)
+    const tasksLimit = normalizeProjectSliceLimit(input?.tasksLimit)
+    const tasksOffset = normalizePageOffset(input?.tasksOffset)
+
     if (hasTauriRuntime()) {
-      return tauriInvoke('projects_list_details')
+      return tauriInvoke('projects_list_details', {
+        projectId,
+        notesLimit,
+        notesOffset,
+        tasksLimit,
+        tasksOffset,
+      })
     }
 
     const projects = await this.projectsGetState()
-    return projects.map((project) => {
-      const notes: ProjectNoteBlock[] = mockState.notes
+    return projects
+      .filter((project) => !projectId || project.id === projectId || project.slug === projectId)
+      .map((project) => {
+        const allNotes = mockState.notes
         .filter((note) => mockState.noteProjectByPath[note.path] === project.id)
         .sort((left, right) => right.updated_at.localeCompare(left.updated_at))
+      const notes: ProjectNoteBlock[] = allNotes
+        .slice(notesOffset, notesOffset + notesLimit)
         .map((note) => ({
           id: note.id,
           path: note.path,
@@ -1069,7 +1098,8 @@ export const api = {
           updated_at: note.updated_at,
           preview_md: extractPreview(note.body_md),
         }))
-      const tasks: ProjectTaskView[] = mockState.projectTasks
+
+      const allTasks = mockState.projectTasks
         .filter((task) => task.project_id === project.id)
         .sort((left, right) => {
           const statusOrder = (status: string) =>
@@ -1082,6 +1112,8 @@ export const api = {
           if (byDue !== 0) return byDue
           return right.updated_at.localeCompare(left.updated_at)
         })
+      const tasks: ProjectTaskView[] = allTasks
+        .slice(tasksOffset, tasksOffset + tasksLimit)
         .map(({ id, title, status, energy, due_at, updated_at }) => ({
           id,
           title,
@@ -1093,6 +1125,12 @@ export const api = {
 
       return {
         project,
+        notes_total: allNotes.length,
+        tasks_total: allTasks.length,
+        notes_limit: notesLimit,
+        notes_offset: notesOffset,
+        tasks_limit: tasksLimit,
+        tasks_offset: tasksOffset,
         notes,
         tasks,
       }

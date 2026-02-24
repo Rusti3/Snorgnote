@@ -63,4 +63,59 @@ describe('api projects mock contract', () => {
     expect(general).toBeTruthy()
     expect(general?.tasks.some((task) => task.id === created.id)).toBe(false)
   })
+
+  it('supports paginated project details for notes and tasks', async () => {
+    const api = await loadApiModule()
+
+    await api.vaultSaveNote('Notes/pag-1.md', '# P1\n\nA')
+    await api.vaultSaveNote('Notes/pag-2.md', '# P2\n\nB')
+    await api.vaultSaveNote('Notes/pag-3.md', '# P3\n\nC')
+    await api.projectsAssignNotes('project_life', [
+      'Notes/pag-1.md',
+      'Notes/pag-2.md',
+      'Notes/pag-3.md',
+    ])
+    await api.projectsTaskCreate({
+      projectId: 'project_life',
+      title: 'T1',
+      status: 'todo',
+      energy: 'medium',
+    })
+    await api.projectsTaskCreate({
+      projectId: 'project_life',
+      title: 'T2',
+      status: 'todo',
+      energy: 'medium',
+    })
+    await api.projectsTaskCreate({
+      projectId: 'project_life',
+      title: 'T3',
+      status: 'done',
+      energy: 'low',
+    })
+
+    const page = await api.projectsListDetails({
+      projectId: 'project_life',
+      notesLimit: 1,
+      notesOffset: 1,
+      tasksLimit: 1,
+      tasksOffset: 1,
+    })
+    expect(page.length).toBe(1)
+    expect(page[0].project.id).toBe('project_life')
+    expect(page[0].notes_total).toBe(3)
+    expect(page[0].tasks_total).toBe(3)
+    expect(page[0].notes.length).toBe(1)
+    expect(page[0].tasks.length).toBe(1)
+
+    const notesOnlyPage = await api.projectsListDetails({
+      projectId: 'project_life',
+      notesLimit: 1,
+      notesOffset: 0,
+      tasksLimit: 0,
+      tasksOffset: 0,
+    })
+    expect(notesOnlyPage[0].notes.length).toBe(1)
+    expect(notesOnlyPage[0].tasks.length).toBe(0)
+  })
 })

@@ -207,6 +207,12 @@ export interface ProjectTaskView {
 
 export interface ProjectDetails {
   project: ProjectState
+  notes_total: number
+  tasks_total: number
+  notes_limit: number
+  notes_offset: number
+  tasks_limit: number
+  tasks_offset: number
   notes: ProjectNoteBlock[]
   tasks: ProjectTaskView[]
 }

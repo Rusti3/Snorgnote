@@ -92,8 +92,8 @@ export default function App() {
             <h2 className="font-display text-2xl font-semibold">{title}</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
               {t(
-                'v0.1.24: проекты получили раскрытие, карточки заметок, CRUD задач и массовое назначение заметок в проект из вкладки Notes.',
-                'v0.1.24: projects now support expand view, note cards, task CRUD, and bulk note assignment from Notes tab.',
+                'v0.1.25: в проектах добавлены поиск/фильтры по заметкам и задачам, а backend логика проектов вынесена в отдельный модуль.',
+                'v0.1.25: projects now include note/task search and filters, and project backend logic was extracted into a dedicated module.',
               )}
             </p>
           </Card>

@@ -4,6 +4,7 @@ pub mod flashcards;
 pub mod focus;
 pub mod jobs;
 pub mod planner;
+pub mod projects;
 pub mod protocol;
 pub mod review;
 pub mod skills;

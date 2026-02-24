@@ -24,12 +24,28 @@ type TaskDraft = {
   dueAt: string
 }
 
+type ProjectFilters = {
+  noteQuery: string
+  taskQuery: string
+  taskStatus: 'all' | 'todo' | 'in_progress' | 'done'
+  taskEnergy: 'all' | 'low' | 'medium' | 'high'
+}
+
 function emptyTaskDraft(): TaskDraft {
   return {
     title: '',
     status: 'todo',
     energy: 'medium',
     dueAt: '',
+  }
+}
+
+function emptyProjectFilters(): ProjectFilters {
+  return {
+    noteQuery: '',
+    taskQuery: '',
+    taskStatus: 'all',
+    taskEnergy: 'all',
   }
 }
 
@@ -72,6 +88,7 @@ export function ProjectsPanel() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [taskDrafts, setTaskDrafts] = useState<Record<string, TaskDraft>>({})
   const [taskCreateDrafts, setTaskCreateDrafts] = useState<Record<string, TaskDraft>>({})
+  const [projectFilters, setProjectFilters] = useState<Record<string, ProjectFilters>>({})
   const [modalOpen, setModalOpen] = useState(false)
   const [modalNote, setModalNote] = useState<NoteDocument | null>(null)
   const [modalLoading, setModalLoading] = useState(false)
@@ -106,6 +123,15 @@ export function ProjectsPanel() {
         for (const projectDetails of detailsResult) {
           if (!next[projectDetails.project.id]) {
             next[projectDetails.project.id] = emptyTaskDraft()
+          }
+        }
+        return next
+      })
+      setProjectFilters((current) => {
+        const next = { ...current }
+        for (const projectDetails of detailsResult) {
+          if (!next[projectDetails.project.id]) {
+            next[projectDetails.project.id] = emptyProjectFilters()
           }
         }
         return next
@@ -145,6 +171,16 @@ export function ProjectsPanel() {
       ...current,
       [projectId]: {
         ...(current[projectId] ?? emptyTaskDraft()),
+        ...patch,
+      },
+    }))
+  }
+
+  function updateProjectFilters(projectId: string, patch: Partial<ProjectFilters>) {
+    setProjectFilters((current) => ({
+      ...current,
+      [projectId]: {
+        ...(current[projectId] ?? emptyProjectFilters()),
         ...patch,
       },
     }))
@@ -294,6 +330,21 @@ export function ProjectsPanel() {
           const project = projectDetails.project
           const isExpanded = Boolean(expanded[project.id])
           const createDraft = taskCreateDrafts[project.id] ?? emptyTaskDraft()
+          const filters = projectFilters[project.id] ?? emptyProjectFilters()
+          const noteQuery = filters.noteQuery.trim().toLowerCase()
+          const taskQuery = filters.taskQuery.trim().toLowerCase()
+          const filteredNotes = projectDetails.notes.filter((note) => {
+            if (!noteQuery) return true
+            const haystack = `${note.title}\n${note.path}\n${note.preview_md}`.toLowerCase()
+            return haystack.includes(noteQuery)
+          })
+          const filteredTasks = projectDetails.tasks.filter((task) => {
+            const matchesQuery = !taskQuery
+              || `${task.title}\n${task.status}\n${task.energy}`.toLowerCase().includes(taskQuery)
+            const matchesStatus = filters.taskStatus === 'all' || task.status === filters.taskStatus
+            const matchesEnergy = filters.taskEnergy === 'all' || task.energy === filters.taskEnergy
+            return matchesQuery && matchesStatus && matchesEnergy
+          })
 
           return (
             <Card key={project.id} className="space-y-3">
@@ -303,6 +354,7 @@ export function ProjectsPanel() {
                     size="sm"
                     variant="ghost"
                     onClick={() => toggleProject(project.id)}
+                    aria-label={`toggle-project-${project.id}`}
                   >
                     {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                   </Button>
@@ -329,10 +381,16 @@ export function ProjectsPanel() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <h5 className="text-sm font-semibold">{t('Заметки проекта', 'Project notes')}</h5>
-                      <Badge>{projectDetails.notes.length}</Badge>
+                      <Badge>{filteredNotes.length}/{projectDetails.notes.length}</Badge>
                     </div>
+                    <input
+                      className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-sm"
+                      placeholder={t('Поиск заметок', 'Search notes')}
+                      value={filters.noteQuery}
+                      onChange={(event) => updateProjectFilters(project.id, { noteQuery: event.target.value })}
+                    />
                     <VirtualList
-                      items={projectDetails.notes}
+                      items={filteredNotes}
                       itemHeight={98}
                       maxHeightClassName="max-h-[32vh]"
                       getKey={(note) => note.id}
@@ -363,7 +421,40 @@ export function ProjectsPanel() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <h5 className="text-sm font-semibold">{t('Задачи проекта', 'Project tasks')}</h5>
-                      <Badge>{projectDetails.tasks.length}</Badge>
+                      <Badge>{filteredTasks.length}/{projectDetails.tasks.length}</Badge>
+                    </div>
+
+                    <div className="grid gap-2 rounded-md border border-[var(--border)] bg-[var(--background)]/70 p-2 md:grid-cols-[2fr_auto_auto]">
+                      <input
+                        className="h-9 rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-sm"
+                        placeholder={t('Поиск задач', 'Search tasks')}
+                        value={filters.taskQuery}
+                        onChange={(event) => updateProjectFilters(project.id, { taskQuery: event.target.value })}
+                      />
+                      <select
+                        className="h-9 rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-sm"
+                        value={filters.taskStatus}
+                        onChange={(event) => updateProjectFilters(project.id, {
+                          taskStatus: event.target.value as ProjectFilters['taskStatus'],
+                        })}
+                      >
+                        <option value="all">{t('Все статусы', 'All statuses')}</option>
+                        <option value="todo">todo</option>
+                        <option value="in_progress">in_progress</option>
+                        <option value="done">done</option>
+                      </select>
+                      <select
+                        className="h-9 rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-sm"
+                        value={filters.taskEnergy}
+                        onChange={(event) => updateProjectFilters(project.id, {
+                          taskEnergy: event.target.value as ProjectFilters['taskEnergy'],
+                        })}
+                      >
+                        <option value="all">{t('Вся энергия', 'All energy')}</option>
+                        <option value="low">low</option>
+                        <option value="medium">medium</option>
+                        <option value="high">high</option>
+                      </select>
                     </div>
 
                     <div className="grid gap-2 rounded-md border border-[var(--border)] bg-[var(--background)]/70 p-2 md:grid-cols-[2fr_auto_auto_1fr_auto]">
@@ -412,7 +503,7 @@ export function ProjectsPanel() {
                     </div>
 
                     <VirtualList
-                      items={projectDetails.tasks}
+                      items={filteredTasks}
                       itemHeight={132}
                       maxHeightClassName="max-h-[38vh]"
                       getKey={(task) => task.id}

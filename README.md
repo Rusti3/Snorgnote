@@ -12,7 +12,7 @@
 
 ## Статус
 
-Текущая версия: `v0.1.24`.
+Текущая версия: `v0.1.25`.
 
 Реализовано:
 
@@ -244,4 +244,19 @@ npm run dev
 - Добавлены тесты:
 - Frontend: `api-projects.test.ts`;
 - Backend: новые тесты в `core::focus::tests` для assign/details/task CRUD/валидации.
+
+### v0.1.25
+
+- В `Projects` добавлены фильтры внутри раскрытого проекта:
+- поиск по заметкам проекта;
+- поиск по задачам;
+- фильтр задач по статусу и энергии.
+- Backend-логика проектов вынесена из `core/focus.rs` в отдельный модуль `core/projects.rs`:
+- `projects_state`, `projects_list_details`, `projects_assign_notes`, `projects_task_create/update/delete`;
+- тесты проектов перенесены и изолированы в `core::projects::tests`.
+- Добавлены component-тесты UI:
+- `src/features/notes-panel.test.tsx` (массовое назначение заметок в проект);
+- `src/features/projects-panel.test.tsx` (фильтрация и CRUD задач).
+- Для component-тестов подключены dev-зависимости:
+- `@testing-library/react`, `@testing-library/user-event`, `jsdom`.
 

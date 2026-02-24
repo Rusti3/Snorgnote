@@ -188,6 +188,34 @@ export interface ProjectState {
   done_today: number
 }
 
+export interface ProjectNoteBlock {
+  id: string
+  path: string
+  title: string
+  updated_at: string
+  preview_md: string
+}
+
+export interface ProjectTaskView {
+  id: string
+  title: string
+  status: 'todo' | 'in_progress' | 'done' | string
+  energy: 'low' | 'medium' | 'high' | string
+  due_at?: string
+  updated_at: string
+}
+
+export interface ProjectDetails {
+  project: ProjectState
+  notes: ProjectNoteBlock[]
+  tasks: ProjectTaskView[]
+}
+
+export interface ProjectAssignNotesReport {
+  updated: number
+  skipped: number
+}
+
 export interface TelegramStatus {
   configured: boolean
   verified: boolean

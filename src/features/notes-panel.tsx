@@ -7,14 +7,16 @@ import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { api } from '../lib/api'
 import { useLocale } from '../lib/locale'
-import type { NoteDocument, NoteSummary, TrashedNoteSummary } from '../types/api'
+import type { NoteDocument, NoteSummary, ProjectState, TrashedNoteSummary } from '../types/api'
 
 export function NotesPanel() {
   const { t } = useLocale()
   const [notes, setNotes] = useState<NoteSummary[]>([])
+  const [projects, setProjects] = useState<ProjectState[]>([])
   const [trashedNotes, setTrashedNotes] = useState<TrashedNoteSummary[]>([])
   const [selectedPath, setSelectedPath] = useState<string>('')
   const [selectedForCards, setSelectedForCards] = useState<string[]>([])
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('')
   const [editor, setEditor] = useState('')
   const [newPath, setNewPath] = useState('Notes/new-note.md')
   const [status, setStatus] = useState<string | null>(null)
@@ -30,12 +32,14 @@ export function NotesPanel() {
   const loadData = useCallback(async () => {
     setError(null)
     try {
-      const [notesResult, trashResult] = await Promise.all([
+      const [notesResult, trashResult, projectsResult] = await Promise.all([
         api.vaultListNotes(),
         api.vaultTrashList(),
+        api.projectsGetState(),
       ])
       setNotes(notesResult)
       setTrashedNotes(trashResult)
+      setProjects(projectsResult)
 
       setSelectedPath((current) => {
         if (current && notesResult.some((note) => note.path === current)) {
@@ -44,6 +48,12 @@ export function NotesPanel() {
         return notesResult[0]?.path ?? ''
       })
       setSelectedForCards((current) => current.filter((path) => notesResult.some((note) => note.path === path)))
+      setSelectedProjectId((current) => {
+        if (current && projectsResult.some((project) => project.id === current)) {
+          return current
+        }
+        return projectsResult[0]?.id ?? ''
+      })
     } catch (err) {
       setError(
         err instanceof Error
@@ -98,6 +108,26 @@ export function NotesPanel() {
         err instanceof Error
           ? err.message
           : t('Не удалось отправить заметки в карточки', 'Failed to create cards from notes'),
+      )
+    }
+  }
+
+  async function onAssignSelectedToProject() {
+    if (selectedForCards.length === 0 || !selectedProjectId) return
+    setError(null)
+    setStatus(null)
+    try {
+      const report = await api.projectsAssignNotes(selectedProjectId, selectedForCards)
+      setStatus(
+        `${t('Назначено проекту', 'Assigned to project')}: ${report.updated}. ${t('Пропущено', 'Skipped')}: ${report.skipped}`,
+      )
+      setSelectedForCards([])
+      await loadData()
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('Не удалось привязать заметки к проекту', 'Failed to assign notes to project'),
       )
     }
   }
@@ -230,6 +260,28 @@ export function NotesPanel() {
             disabled={notes.length === 0}
           >
             {t('Выбрать все', 'Select all')}
+          </Button>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+          <select
+            className="h-9 rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-sm"
+            value={selectedProjectId}
+            onChange={(event) => setSelectedProjectId(event.target.value)}
+            disabled={projects.length === 0}
+          >
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+          <Button
+            variant="outline"
+            onClick={() => void onAssignSelectedToProject()}
+            disabled={selectedForCards.length === 0 || !selectedProjectId}
+          >
+            {t('Добавить в проект', 'Add to project')}
           </Button>
         </div>
 

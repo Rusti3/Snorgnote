@@ -92,8 +92,8 @@ export default function App() {
             <h2 className="font-display text-2xl font-semibold">{title}</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
               {t(
-                'v0.1.23: добавлены карточки Flashcards с review-режимом и отправкой выбранных заметок в карточки.',
-                'v0.1.23: Flashcards tab now supports review mode and creating cards from selected notes.',
+                'v0.1.24: проекты получили раскрытие, карточки заметок, CRUD задач и массовое назначение заметок в проект из вкладки Notes.',
+                'v0.1.24: projects now support expand view, note cards, task CRUD, and bulk note assignment from Notes tab.',
               )}
             </p>
           </Card>

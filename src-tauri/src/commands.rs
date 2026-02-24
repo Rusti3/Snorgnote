@@ -336,6 +336,61 @@ pub fn projects_get_state(
 }
 
 #[tauri::command]
+pub fn projects_list_details(
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::core::ProjectDetails>, String> {
+    state
+        .projects_list_details()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn projects_assign_notes(
+    state: State<'_, AppState>,
+    project_id: String,
+    note_paths: Vec<String>,
+) -> Result<crate::core::ProjectAssignNotesReport, String> {
+    state
+        .projects_assign_notes(project_id, note_paths)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn projects_task_create(
+    state: State<'_, AppState>,
+    project_id: String,
+    title: String,
+    status: Option<String>,
+    energy: Option<String>,
+    due_at: Option<String>,
+) -> Result<crate::core::ProjectTaskView, String> {
+    state
+        .projects_task_create(project_id, title, status, energy, due_at)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn projects_task_update(
+    state: State<'_, AppState>,
+    task_id: String,
+    title: Option<String>,
+    status: Option<String>,
+    energy: Option<String>,
+    due_at: Option<String>,
+) -> Result<crate::core::ProjectTaskView, String> {
+    state
+        .projects_task_update(task_id, title, status, energy, due_at)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn projects_task_delete(state: State<'_, AppState>, task_id: String) -> Result<(), String> {
+    state
+        .projects_task_delete(task_id)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn telegram_set_config(
     state: State<'_, AppState>,
     bot_token: String,

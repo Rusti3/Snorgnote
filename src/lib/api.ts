@@ -18,7 +18,11 @@ import type {
   JobRunReport,
   NoteDocument,
   NoteSummary,
+  ProjectAssignNotesReport,
+  ProjectDetails,
+  ProjectNoteBlock,
   ProjectState,
+  ProjectTaskView,
   SkillRecord,
   SkillRunResult,
   SkillValidation,
@@ -77,6 +81,30 @@ function normalizeFlashcardStatus(status: string | undefined): FlashcardStatus {
 
 function compareIsoAsc(left: string, right: string): number {
   return left.localeCompare(right)
+}
+
+function normalizeProjectTaskStatus(status: string | undefined): 'todo' | 'in_progress' | 'done' {
+  if (status === 'in_progress' || status === 'done') {
+    return status
+  }
+  return 'todo'
+}
+
+function normalizeProjectTaskEnergy(energy: string | undefined): 'low' | 'medium' | 'high' {
+  if (energy === 'low' || energy === 'high') {
+    return energy
+  }
+  return 'medium'
+}
+
+function extractPreview(bodyMd: string): string {
+  const compact = bodyMd
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(' ')
+  if (!compact) return ''
+  return compact.length > 220 ? `${compact.slice(0, 217)}...` : compact
 }
 
 function applyFlashcardGrade(card: FlashcardView, grade: FlashcardGrade): FlashcardView {
@@ -138,11 +166,13 @@ function applyFlashcardGrade(card: FlashcardView, grade: FlashcardGrade): Flashc
 
 const mockState = {
   notes: [] as NoteDocument[],
+  noteProjectByPath: {} as Record<string, string>,
   notesTrash: [] as Array<{
     id: string
     original_path: string
     deleted_at: string
     note: NoteDocument
+    project_id?: string
   }>,
   inbox: [] as InboxItemView[],
   inboxTrash: [] as Array<{
@@ -166,7 +196,19 @@ const mockState = {
       open_tasks: 0,
       done_today: 0,
     },
+    {
+      id: 'project_life',
+      slug: 'life',
+      name: 'Life',
+      biome_type: 'habitat',
+      health: 55,
+      xp: 0,
+      level: 1,
+      open_tasks: 0,
+      done_today: 0,
+    },
   ] as ProjectState[],
+  projectTasks: [] as Array<ProjectTaskView & { project_id: string; created_at: string }>,
   focusActive: null as FocusSessionView | null,
   focusHistory: [] as FocusSessionView[],
   flashcards: [] as FlashcardView[],
@@ -249,23 +291,25 @@ export const api = {
       return tauriInvoke('vault_save_note', { path, bodyMd })
     }
 
+    const normalizedPath = path.trim().replace(/\\/g, '/')
     const title = bodyMd
       .split('\n')
       .find((line) => line.trim().startsWith('# '))
       ?.replace(/^#\s+/, '')
       ?.trim()
-      || path.replace(/\.md$/i, '').split('/').pop()
+      || normalizedPath.replace(/\.md$/i, '').split('/').pop()
       || 'Без названия'
 
+    const existing = mockState.notes.find((note) => note.path === normalizedPath)
     const doc: NoteDocument = {
-      id: crypto.randomUUID(),
-      path,
+      id: existing?.id ?? crypto.randomUUID(),
+      path: normalizedPath,
       title,
       body_md: bodyMd,
       frontmatter: {},
       updated_at: now(),
     }
-    const idx = mockState.notes.findIndex((note) => note.path === path)
+    const idx = mockState.notes.findIndex((note) => note.path === normalizedPath)
     if (idx >= 0) mockState.notes[idx] = doc
     else mockState.notes.push(doc)
     return doc
@@ -276,16 +320,20 @@ export const api = {
       return tauriInvoke('vault_delete_note', { path })
     }
 
-    const idx = mockState.notes.findIndex((note) => note.path === path)
+    const normalizedPath = path.trim().replace(/\\/g, '/')
+    const idx = mockState.notes.findIndex((note) => note.path === normalizedPath)
     if (idx < 0) {
-      throw new Error(`Заметка не найдена: ${path}`)
+      throw new Error(`Заметка не найдена: ${normalizedPath}`)
     }
     const [note] = mockState.notes.splice(idx, 1)
+    const projectId = mockState.noteProjectByPath[normalizedPath]
+    delete mockState.noteProjectByPath[normalizedPath]
     mockState.notesTrash.unshift({
       id: crypto.randomUUID(),
-      original_path: path,
+      original_path: normalizedPath,
       deleted_at: now(),
       note,
+      project_id: projectId,
     })
   },
 
@@ -320,6 +368,9 @@ export const api = {
       ...entry.note,
       path: restoredPath,
       updated_at: now(),
+    }
+    if (entry.project_id) {
+      mockState.noteProjectByPath[restoredPath] = entry.project_id
     }
     mockState.notes.push(restored)
     return restored
@@ -985,7 +1036,215 @@ export const api = {
     if (hasTauriRuntime()) {
       return tauriInvoke('projects_get_state')
     }
-    return mockState.projects
+
+    const todayPrefix = today()
+    return mockState.projects.map((project) => {
+      const tasks = mockState.projectTasks.filter((task) => task.project_id === project.id)
+      const openTasks = tasks.filter((task) => task.status !== 'done').length
+      const doneToday = tasks.filter(
+        (task) => task.status === 'done' && task.updated_at.startsWith(todayPrefix),
+      ).length
+      return {
+        ...project,
+        open_tasks: openTasks,
+        done_today: doneToday,
+      }
+    })
+  },
+
+  async projectsListDetails(): Promise<ProjectDetails[]> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('projects_list_details')
+    }
+
+    const projects = await this.projectsGetState()
+    return projects.map((project) => {
+      const notes: ProjectNoteBlock[] = mockState.notes
+        .filter((note) => mockState.noteProjectByPath[note.path] === project.id)
+        .sort((left, right) => right.updated_at.localeCompare(left.updated_at))
+        .map((note) => ({
+          id: note.id,
+          path: note.path,
+          title: note.title,
+          updated_at: note.updated_at,
+          preview_md: extractPreview(note.body_md),
+        }))
+      const tasks: ProjectTaskView[] = mockState.projectTasks
+        .filter((task) => task.project_id === project.id)
+        .sort((left, right) => {
+          const statusOrder = (status: string) =>
+            status === 'todo' ? 0 : status === 'in_progress' ? 1 : status === 'done' ? 2 : 3
+          const byStatus = statusOrder(left.status) - statusOrder(right.status)
+          if (byStatus !== 0) return byStatus
+          const leftDue = left.due_at ?? '9999-12-31T23:59:59Z'
+          const rightDue = right.due_at ?? '9999-12-31T23:59:59Z'
+          const byDue = leftDue.localeCompare(rightDue)
+          if (byDue !== 0) return byDue
+          return right.updated_at.localeCompare(left.updated_at)
+        })
+        .map(({ id, title, status, energy, due_at, updated_at }) => ({
+          id,
+          title,
+          status,
+          energy,
+          due_at,
+          updated_at,
+        }))
+
+      return {
+        project,
+        notes,
+        tasks,
+      }
+    })
+  },
+
+  async projectsAssignNotes(
+    projectId: string,
+    notePaths: string[],
+  ): Promise<ProjectAssignNotesReport> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('projects_assign_notes', { projectId, notePaths })
+    }
+
+    const normalizedProjectId = projectId.trim()
+    if (!mockState.projects.some((project) => project.id === normalizedProjectId || project.slug === normalizedProjectId)) {
+      throw new Error(`Проект не найден: ${normalizedProjectId}`)
+    }
+    const resolvedProjectId = mockState.projects.find((project) =>
+      project.id === normalizedProjectId || project.slug === normalizedProjectId,
+    )?.id ?? normalizedProjectId
+
+    const uniquePaths = [...new Set(notePaths.map((path) => path.trim().replace(/\\/g, '/')).filter(Boolean))]
+    let updated = 0
+    let skipped = 0
+    for (const path of uniquePaths) {
+      const note = mockState.notes.find((item) => item.path === path)
+      if (!note) {
+        skipped += 1
+        continue
+      }
+      mockState.noteProjectByPath[path] = resolvedProjectId
+      note.updated_at = now()
+      updated += 1
+    }
+    return { updated, skipped }
+  },
+
+  async projectsTaskCreate(input: {
+    projectId: string
+    title: string
+    status?: string
+    energy?: string
+    dueAt?: string | null
+  }): Promise<ProjectTaskView> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('projects_task_create', {
+        projectId: input.projectId,
+        title: input.title,
+        status: input.status,
+        energy: input.energy,
+        dueAt: input.dueAt,
+      })
+    }
+
+    const normalizedTitle = input.title.trim()
+    if (!normalizedTitle) {
+      throw new Error('Заголовок задачи не может быть пустым')
+    }
+    const project = mockState.projects.find((item) =>
+      item.id === input.projectId || item.slug === input.projectId,
+    )
+    if (!project) {
+      throw new Error(`Проект не найден: ${input.projectId}`)
+    }
+
+    const task = {
+      id: crypto.randomUUID(),
+      project_id: project.id,
+      title: normalizedTitle,
+      status: normalizeProjectTaskStatus(input.status),
+      energy: normalizeProjectTaskEnergy(input.energy),
+      due_at: input.dueAt?.trim() || undefined,
+      created_at: now(),
+      updated_at: now(),
+    }
+    mockState.projectTasks.unshift(task)
+    return {
+      id: task.id,
+      title: task.title,
+      status: task.status,
+      energy: task.energy,
+      due_at: task.due_at,
+      updated_at: task.updated_at,
+    }
+  },
+
+  async projectsTaskUpdate(
+    taskId: string,
+    input: {
+      title?: string
+      status?: string
+      energy?: string
+      dueAt?: string | null
+    },
+  ): Promise<ProjectTaskView> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('projects_task_update', {
+        taskId,
+        title: input.title,
+        status: input.status,
+        energy: input.energy,
+        dueAt: input.dueAt,
+      })
+    }
+
+    const idx = mockState.projectTasks.findIndex((task) => task.id === taskId)
+    if (idx < 0) {
+      throw new Error(`Задача не найдена: ${taskId}`)
+    }
+
+    const current = mockState.projectTasks[idx]
+    const nextTitle = input.title !== undefined ? input.title.trim() : current.title
+    if (!nextTitle) {
+      throw new Error('Заголовок задачи не может быть пустым')
+    }
+
+    const hasDueAt = Object.prototype.hasOwnProperty.call(input, 'dueAt')
+    const nextDueAt = hasDueAt
+      ? (input.dueAt?.trim() || undefined)
+      : current.due_at
+
+    const updated = {
+      ...current,
+      title: nextTitle,
+      status: input.status ? normalizeProjectTaskStatus(input.status) : current.status,
+      energy: input.energy ? normalizeProjectTaskEnergy(input.energy) : current.energy,
+      due_at: nextDueAt,
+      updated_at: now(),
+    }
+    mockState.projectTasks[idx] = updated
+
+    return {
+      id: updated.id,
+      title: updated.title,
+      status: updated.status,
+      energy: updated.energy,
+      due_at: updated.due_at,
+      updated_at: updated.updated_at,
+    }
+  },
+
+  async projectsTaskDelete(taskId: string): Promise<void> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('projects_task_delete', { taskId })
+    }
+
+    const idx = mockState.projectTasks.findIndex((task) => task.id === taskId)
+    if (idx < 0) {
+      throw new Error(`Задача не найдена: ${taskId}`)
+    }
+    mockState.projectTasks.splice(idx, 1)
   },
 
   async telegramSetConfig(botToken: string, username: string): Promise<TelegramStatus> {

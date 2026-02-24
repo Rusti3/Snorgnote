@@ -206,6 +206,38 @@ pub struct ProjectState {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct ProjectNoteBlock {
+    pub id: String,
+    pub path: String,
+    pub title: String,
+    pub updated_at: String,
+    pub preview_md: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ProjectTaskView {
+    pub id: String,
+    pub title: String,
+    pub status: String,
+    pub energy: String,
+    pub due_at: Option<String>,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ProjectDetails {
+    pub project: ProjectState,
+    pub notes: Vec<ProjectNoteBlock>,
+    pub tasks: Vec<ProjectTaskView>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ProjectAssignNotesReport {
+    pub updated: i64,
+    pub skipped: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct TelegramStatus {
     pub configured: bool,
     pub verified: bool,

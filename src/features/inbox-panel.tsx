@@ -6,6 +6,7 @@ import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { api } from '../lib/api'
+import { subscribeInboxUpdates } from '../lib/inbox-events'
 import { useLocale } from '../lib/locale'
 import type { InboxItemView, TrashedInboxItem } from '../types/api'
 
@@ -60,6 +61,23 @@ export function InboxPanel() {
 
   useEffect(() => {
     void loadInbox()
+  }, [loadInbox])
+
+  useEffect(() => {
+    let isActive = true
+    let unsubscribe = () => {}
+
+    void subscribeInboxUpdates(() => {
+      if (!isActive) return
+      void loadInbox()
+    }).then((cleanup) => {
+      unsubscribe = cleanup
+    })
+
+    return () => {
+      isActive = false
+      unsubscribe()
+    }
   }, [loadInbox])
 
   async function onCapture() {

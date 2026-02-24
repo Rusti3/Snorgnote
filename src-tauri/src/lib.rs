@@ -2,9 +2,17 @@ mod adapters;
 mod commands;
 mod core;
 
-use tauri::Manager;
+use serde::Serialize;
+use tauri::{Emitter, Manager};
 
 const PROTOCOL_SCHEME: &str = "snorgnote";
+const INBOX_UPDATED_EVENT: &str = "snorgnote://inbox-updated";
+
+#[derive(Debug, Clone, Serialize)]
+struct InboxUpdatedEventPayload {
+    item_id: String,
+    source: String,
+}
 
 fn ingest_browser_deeplink_arg(app: &tauri::AppHandle, args: Vec<String>) {
     let Some(uri) = core::deeplink::extract_deeplink_from_args(args) else {
@@ -23,6 +31,13 @@ fn ingest_browser_deeplink_arg(app: &tauri::AppHandle, args: Vec<String>) {
                 item.id,
                 item.source
             );
+            let payload = InboxUpdatedEventPayload {
+                item_id: item.id,
+                source: item.source,
+            };
+            if let Err(error) = app.emit(INBOX_UPDATED_EVENT, payload) {
+                log::warn!("failed to emit inbox update event: {error:#}");
+            }
         }
         Err(error) => {
             log::error!("failed to ingest browser deep-link `{uri}`: {error:#}");

@@ -17,7 +17,8 @@ use walkdir::WalkDir;
 use crate::core::{
     db::{init_schema, BUILTIN_SKILLS, DEFAULT_PROJECT_ID},
     deeplink::{
-        browser_tags, build_inbox_content, normalize_browser_source, parse_browser_deeplink,
+        browser_dedup_key, browser_tags, build_inbox_content, content_sha256,
+        normalize_browser_source, normalize_browser_url, parse_browser_deeplink,
     },
     types::{
         InboxItemView, JobRunReport, NoteDocument, NoteSummary, SkillConfig, SkillRecord,
@@ -694,25 +695,46 @@ impl AppState {
         tags: Vec<String>,
         project_hint: Option<String>,
     ) -> Result<InboxItemView> {
-        self.inbox_add_item_with_raw_payload(source, content_text, tags, project_hint, &json!({}))
+        let conn = self.conn()?;
+        self.inbox_add_item_with_raw_payload(
+            &conn,
+            source,
+            content_text,
+            tags,
+            project_hint,
+            &json!({}),
+        )
     }
 
     pub fn ingest_browser_deeplink(&self, uri: &str) -> Result<InboxItemView> {
         let payload = parse_browser_deeplink(uri)?;
         let source = normalize_browser_source(payload.source.as_deref()).to_string();
+        let normalized_url = normalize_browser_url(&payload.url)?;
+        let content_hash = content_sha256(&payload.content_markdown);
+        let dedup_key = browser_dedup_key(&normalized_url, &content_hash);
         let tags = browser_tags(&payload);
         let content_text = build_inbox_content(&payload);
         let raw_payload = json!({
             "transport": "deeplink",
             "uri": uri,
             "payload": payload,
+            "dedup": {
+                "key": dedup_key.clone(),
+                "normalized_url": normalized_url.clone(),
+                "content_sha256": content_hash.clone(),
+            }
         });
+        let conn = self.conn()?;
+        if let Some(existing) = self.find_browser_duplicate_by_dedup_key(&conn, &dedup_key)? {
+            return Ok(existing);
+        }
 
-        self.inbox_add_item_with_raw_payload(source, content_text, tags, None, &raw_payload)
+        self.inbox_add_item_with_raw_payload(&conn, source, content_text, tags, None, &raw_payload)
     }
 
     fn inbox_add_item_with_raw_payload(
         &self,
+        conn: &Connection,
         source: String,
         content_text: String,
         tags: Vec<String>,
@@ -736,7 +758,6 @@ impl AppState {
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
 
-        let conn = self.conn()?;
         let id = Uuid::new_v4().to_string();
         let now = now_rfc3339();
         let tags_json = serde_json::to_string(&tags)?;
@@ -765,6 +786,42 @@ impl AppState {
             project_hint,
             tags,
         })
+    }
+
+    fn find_browser_duplicate_by_dedup_key(
+        &self,
+        conn: &Connection,
+        dedup_key: &str,
+    ) -> Result<Option<InboxItemView>> {
+        let mut stmt = conn.prepare(
+            "SELECT id, source, content_text, created_at, status, project_hint, tags_json, raw_payload_json
+             FROM inbox_items
+             WHERE source = 'browser' AND status != 'trashed'
+             ORDER BY created_at DESC
+             LIMIT 500",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                InboxItemView {
+                    id: row.get(0)?,
+                    source: row.get(1)?,
+                    content_text: row.get(2)?,
+                    created_at: row.get(3)?,
+                    status: row.get(4)?,
+                    project_hint: row.get(5)?,
+                    tags: parse_tags_json(&row.get::<_, String>(6)?),
+                },
+                row.get::<_, String>(7)?,
+            ))
+        })?;
+
+        for row in rows {
+            let (item, raw_payload_json) = row?;
+            if extract_dedup_key(&raw_payload_json).is_some_and(|key| key == dedup_key) {
+                return Ok(Some(item));
+            }
+        }
+        Ok(None)
     }
 
     pub fn inbox_list(&self, status: Option<String>) -> Result<Vec<InboxItemView>> {
@@ -1208,6 +1265,18 @@ fn build_restored_rel_path(original_path: &str) -> String {
     }
 }
 
+fn extract_dedup_key(raw_payload_json: &str) -> Option<String> {
+    serde_json::from_str::<Value>(raw_payload_json)
+        .ok()
+        .and_then(|value| {
+            value
+                .get("dedup")
+                .and_then(|dedup| dedup.get("key"))
+                .and_then(Value::as_str)
+                .map(ToString::to_string)
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use std::{fs, thread, time::Duration};
@@ -1509,6 +1578,11 @@ mod tests {
         assert_eq!(parsed_raw["transport"], "deeplink");
         assert_eq!(parsed_raw["payload"]["source"], "web-clipper");
         assert_eq!(parsed_raw["payload"]["title"], "Rust ownership");
+        assert!(parsed_raw["dedup"]["key"].is_string());
+        assert_eq!(
+            parsed_raw["dedup"]["normalized_url"],
+            "https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html"
+        );
 
         Ok(())
     }
@@ -1525,6 +1599,63 @@ mod tests {
             .to_string()
             .contains("missing required query parameter"));
 
+        Ok(())
+    }
+
+    #[test]
+    fn ingest_browser_deeplink_deduplicates_same_url_and_content() -> Result<()> {
+        let temp = tempdir()?;
+        let state = AppState::for_test(temp.path())?;
+        let payload = BrowserClipPayload {
+            clip_type: BrowserClipType::FullPage,
+            title: "Ownership".to_string(),
+            url: "https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html#the-rules"
+                .to_string(),
+            content_markdown: "same note".to_string(),
+            created_at: "2026-02-24T11:20:00.000Z".to_string(),
+            source: Some("web-clipper".to_string()),
+        };
+        let uri = encode_payload_to_deeplink(&payload)?;
+
+        let first = state.ingest_browser_deeplink(&uri)?;
+        let second = state.ingest_browser_deeplink(&uri)?;
+        assert_eq!(first.id, second.id);
+
+        let conn = state.conn()?;
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(1) FROM inbox_items WHERE source = 'browser'",
+            [],
+            |row| row.get(0),
+        )?;
+        assert_eq!(count, 1);
+        Ok(())
+    }
+
+    #[test]
+    fn ingest_browser_deeplink_does_not_deduplicate_when_content_differs() -> Result<()> {
+        let temp = tempdir()?;
+        let state = AppState::for_test(temp.path())?;
+        let mut payload = BrowserClipPayload {
+            clip_type: BrowserClipType::Selection,
+            title: "Rust links".to_string(),
+            url: "https://example.com/rust".to_string(),
+            content_markdown: "first".to_string(),
+            created_at: "2026-02-24T11:20:00.000Z".to_string(),
+            source: Some("web-clipper".to_string()),
+        };
+
+        let first = state.ingest_browser_deeplink(&encode_payload_to_deeplink(&payload)?)?;
+        payload.content_markdown = "second".to_string();
+        let second = state.ingest_browser_deeplink(&encode_payload_to_deeplink(&payload)?)?;
+        assert_ne!(first.id, second.id);
+
+        let conn = state.conn()?;
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(1) FROM inbox_items WHERE source = 'browser'",
+            [],
+            |row| row.get(0),
+        )?;
+        assert_eq!(count, 2);
         Ok(())
     }
 

@@ -12,7 +12,7 @@
 
 ## Статус
 
-Текущая версия: `v0.1.19`.
+Текущая версия: `v0.1.20`.
 
 Реализовано:
 
@@ -175,3 +175,15 @@ npm run dev
 - Добавлена авто-регистрация протокола `snorgnote://` на Windows (HKCU `Software\\Classes\\snorgnote`).
 - Подключен single-instance обработчик: если приложение уже запущено, новый deep-link аргумент тоже будет принят и добавлен во входящие без принудительного фокуса окна.
 - Добавлены unit-тесты для deep-link парсинга, ingestion в `AppState` и сохранения `raw_payload_json`.
+
+### v0.1.20
+
+- Добавлено авто-обновление вкладки Inbox по событию `snorgnote://inbox-updated`: новый browser clip появляется без ручного `Refresh`.
+- В Rust runtime после успешного deep-link ingest отправляется Tauri event в UI с `item_id` и `source`.
+- Добавлена дедупликация browser clip по `normalized_url + content_sha256`:
+- повторный одинаковый clip не создает второй элемент во входящих;
+- clip с тем же URL, но другим контентом добавляется как новый.
+- В `raw_payload_json` browser clip теперь сохраняется блок `dedup` (`key`, `normalized_url`, `content_sha256`) для диагностики и контроля.
+- Добавлены тесты:
+- Rust: стабильность dedup-key, нормализация URL, дедуп/не-дедуп сценарии ingestion;
+- Frontend: подписка на событие inbox update и корректный callback.

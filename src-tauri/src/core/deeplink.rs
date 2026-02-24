@@ -3,6 +3,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine as _;
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use url::Url;
 
 const DEEPLINK_SCHEME: &str = "snorgnote";
@@ -104,6 +105,30 @@ pub fn build_inbox_content(payload: &BrowserClipPayload) -> String {
     )
 }
 
+pub fn normalize_browser_url(value: &str) -> Result<String> {
+    let mut parsed =
+        Url::parse(value.trim()).with_context(|| format!("invalid URL in payload: {value}"))?;
+    parsed.set_fragment(None);
+    Ok(parsed.to_string())
+}
+
+pub fn content_sha256(value: &str) -> String {
+    let digest = Sha256::digest(value.trim().as_bytes());
+    let mut hex = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        hex.push_str(format!("{byte:02x}").as_str());
+    }
+    hex
+}
+
+pub fn browser_dedup_key(normalized_url: &str, content_hash: &str) -> String {
+    content_sha256(&format!(
+        "{}\n{}",
+        normalized_url.trim(),
+        content_hash.trim()
+    ))
+}
+
 #[cfg(test)]
 pub fn encode_payload_to_deeplink(payload: &BrowserClipPayload) -> Result<String> {
     let json = serde_json::to_vec(payload)?;
@@ -166,7 +191,8 @@ fn validate_created_at(value: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::{
-        browser_tags, build_inbox_content, encode_payload_to_deeplink, extract_deeplink_from_args,
+        browser_dedup_key, browser_tags, build_inbox_content, content_sha256,
+        encode_payload_to_deeplink, extract_deeplink_from_args, normalize_browser_url,
         parse_browser_deeplink, BrowserClipPayload, BrowserClipType,
     };
 
@@ -233,5 +259,23 @@ mod tests {
         assert!(content.starts_with("# Deep Learning Notes"));
         assert!(content.contains("https://example.com/notes"));
         assert!(content.contains("## Summary"));
+    }
+
+    #[test]
+    fn normalize_url_removes_fragment() {
+        let normalized =
+            normalize_browser_url("https://example.com/notes?a=1#section").expect("normalize");
+        assert_eq!(normalized, "https://example.com/notes?a=1");
+    }
+
+    #[test]
+    fn dedup_key_is_stable_for_same_url_and_content() {
+        let normalized_url =
+            normalize_browser_url("https://example.com/notes#abc").expect("must normalize");
+        let content_hash_a = content_sha256(" same content ");
+        let content_hash_b = content_sha256("same content");
+        let key_a = browser_dedup_key(&normalized_url, &content_hash_a);
+        let key_b = browser_dedup_key("https://example.com/notes", &content_hash_b);
+        assert_eq!(key_a, key_b);
     }
 }

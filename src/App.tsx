@@ -90,8 +90,8 @@ export default function App() {
             <h2 className="font-display text-2xl font-semibold">{title}</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
               {t(
-                'v0.1.15: РєРЅРѕРїРєРё titlebar РЅР°Р¶РёРјР°СЋС‚СЃСЏ РЅР° РІСЃСЋ РІС‹СЃРѕС‚Сѓ РїР°РЅРµР»Рё, drag СЂР°Р±РѕС‚Р°РµС‚ РІ РѕСЃС‚Р°Р»СЊРЅРѕР№ РѕР±Р»Р°СЃС‚Рё.',
-                'v0.1.15: titlebar controls are clickable across full bar height, while drag works in the remaining area.',
+                'v0.1.20: Inbox обновляется автоматически при клипе из браузера, одинаковые клипы по URL+контенту не дублируются.',
+                'v0.1.20: Inbox auto-refreshes for browser clips, and identical URL+content clips are deduplicated.',
               )}
             </p>
           </Card>
@@ -108,3 +108,4 @@ export default function App() {
     </div>
   )
 }
+

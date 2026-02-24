@@ -1,90 +1,258 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { api } from '../lib/api'
 import { useLocale } from '../lib/locale'
-import type { FocusSessionView, FocusStats } from '../types/api'
+import type { FocusStats } from '../types/api'
+import { phaseDurationSec, type PomodoroConfig, type PomodoroPhase } from './focus/pomodoro-engine'
+import { usePomodoro } from './focus/use-pomodoro'
+import { WatchClock } from './focus/watch-clock'
+
+function formatRemaining(seconds: number): string {
+  const clamped = Math.max(0, Math.floor(seconds))
+  const minutes = Math.floor(clamped / 60)
+  const sec = clamped % 60
+  return `${minutes.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`
+}
+
+function phaseLabel(
+  t: (ru: string, en: string) => string,
+  phase: PomodoroPhase,
+): string {
+  if (phase === 'focus') {
+    return t('Фокус', 'Focus')
+  }
+  if (phase === 'short_break') {
+    return t('Короткий перерыв', 'Short break')
+  }
+  return t('Длинный перерыв', 'Long break')
+}
+
+function coerceNumber(raw: string): number | null {
+  const trimmed = raw.trim()
+  if (!trimmed) {
+    return null
+  }
+  const value = Number(trimmed)
+  if (!Number.isFinite(value)) {
+    return null
+  }
+  return value
+}
+
+type ConfigField = keyof PomodoroConfig
 
 export function FocusPanel() {
   const { t } = useLocale()
-  const [active, setActive] = useState<FocusSessionView | null>(null)
-  const [stats, setStats] = useState<FocusStats | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [projectId, setProjectId] = useState('project_general')
+  const [stats, setStats] = useState<FocusStats | null>(null)
+  const [statsError, setStatsError] = useState<string | null>(null)
+  const [pendingConfig, setPendingConfig] = useState<Record<ConfigField, string>>({
+    focus_min: '',
+    short_break_min: '',
+    long_break_min: '',
+    long_break_every: '',
+  })
 
-  async function startFocus() {
-    setError(null)
-    try {
-      const session = await api.focusStart(projectId || undefined, undefined)
-      setActive(session)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('Не удалось начать фокус', 'Unable to start focus'))
-    }
-  }
+  const pomodoro = usePomodoro(projectId)
 
-  async function stopFocus() {
-    setError(null)
-    try {
-      const session = await api.focusStop()
-      setActive(null)
-      const newStats = await api.focusStats(7)
-      setStats(newStats)
-      if (session.duration_sec) {
-        setError(
-          localeFormatDuration(t, session.duration_sec),
-        )
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('Не удалось остановить фокус', 'Unable to stop focus'))
-    }
-  }
+  useEffect(() => {
+    setPendingConfig({
+      focus_min: String(pomodoro.config.focus_min),
+      short_break_min: String(pomodoro.config.short_break_min),
+      long_break_min: String(pomodoro.config.long_break_min),
+      long_break_every: String(pomodoro.config.long_break_every),
+    })
+  }, [pomodoro.config])
+
+  const totalSec = useMemo(
+    () => phaseDurationSec(pomodoro.runtime.phase, pomodoro.config),
+    [pomodoro.config, pomodoro.runtime.phase],
+  )
 
   async function refreshStats() {
-    setError(null)
+    setStatsError(null)
     try {
       const next = await api.focusStats(7)
       setStats(next)
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('Не удалось загрузить статистику фокуса', 'Unable to load focus stats'))
+      setStatsError(
+        err instanceof Error
+          ? err.message
+          : t('Не удалось загрузить статистику фокуса', 'Unable to load focus stats'),
+      )
     }
   }
 
+  useEffect(() => {
+    void refreshStats()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    void refreshStats()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pomodoro.statsTick])
+
+  function applyConfigField(field: ConfigField, value: string) {
+    setPendingConfig((prev) => ({ ...prev, [field]: value }))
+    const numeric = coerceNumber(value)
+    if (numeric === null) {
+      return
+    }
+    pomodoro.setConfigValues({ [field]: numeric })
+  }
+
+  const canPause = pomodoro.runtime.is_running
+  const canStart = !pomodoro.runtime.is_running
+  const canStop = pomodoro.runtime.is_running || Boolean(pomodoro.activeSession)
+  const phaseText = phaseLabel(t, pomodoro.runtime.phase)
+
   return (
     <div className="space-y-4">
-      <Card>
-        <h3 className="mb-3 text-lg font-semibold">{t('Помодоро / Фокус', 'Pomodoro / Focus')}</h3>
-        <div className="mb-2 flex flex-wrap items-center gap-2">
-          <input
-            className="h-9 rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-sm"
-            value={projectId}
-            onChange={(event) => setProjectId(event.target.value)}
-            placeholder="project_general"
-          />
-          <Button onClick={() => void startFocus()} disabled={Boolean(active)}>
-            {t('Старт', 'Start')}
-          </Button>
-          <Button variant="danger" onClick={() => void stopFocus()} disabled={!active}>
-            {t('Стоп', 'Stop')}
-          </Button>
-          <Button variant="outline" onClick={() => void refreshStats()}>
-            {t('Обновить статистику', 'Refresh Stats')}
-          </Button>
+      <Card className="overflow-hidden p-0">
+        <div className="bg-[var(--surface-gradient)] p-4">
+          <h3 className="font-display text-xl font-semibold">{t('Помодоро / Фокус', 'Pomodoro / Focus')}</h3>
+          <p className="text-sm text-[var(--muted-foreground)]">
+            {t(
+              'Кастомный цикл с паузой и продолжением. Следующая фаза запускается вручную.',
+              'Custom cycle with pause and resume. Next phase starts manually.',
+            )}
+          </p>
         </div>
 
-        {active ? (
-          <div className="rounded-md border border-[var(--border)] bg-[var(--muted)]/40 p-3">
-            <p className="text-sm font-medium">{t('Активная сессия', 'Active session')}</p>
-            <p className="text-xs text-[var(--muted-foreground)]">
-              {t('начата в', 'started at')} {new Date(active.started_at).toLocaleTimeString()}
-            </p>
-          </div>
-        ) : (
-          <p className="text-sm text-[var(--muted-foreground)]">{t('Нет активной фокус-сессии.', 'No active focus session.')}</p>
-        )}
+        <div className="grid gap-4 p-4 lg:grid-cols-[minmax(300px,420px)_1fr]">
+          <WatchClock
+            phase={pomodoro.runtime.phase}
+            remainingSec={pomodoro.runtime.remaining_sec}
+            totalSec={totalSec}
+            running={pomodoro.runtime.is_running}
+            caption={formatRemaining(pomodoro.runtime.remaining_sec)}
+          />
 
-        {error ? <p className="mt-2 text-sm text-[var(--danger)]">{error}</p> : null}
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="space-y-1 text-sm">
+                <span className="text-[var(--muted-foreground)]">
+                  {t('Проект', 'Project')}
+                </span>
+                <input
+                  className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-sm"
+                  value={projectId}
+                  onChange={(event) => setProjectId(event.target.value)}
+                  placeholder="project_general"
+                />
+              </label>
+              <div className="space-y-1 text-sm">
+                <span className="text-[var(--muted-foreground)]">{t('Состояние', 'Status')}</span>
+                <div className="flex flex-wrap gap-2">
+                  <Badge>{phaseText}</Badge>
+                  <Badge>
+                    {pomodoro.runtime.is_running
+                      ? t('Идёт', 'Running')
+                      : t('Ожидание', 'Idle')}
+                  </Badge>
+                  <Badge>{t('Цикл', 'Cycle')}: {pomodoro.runtime.cycle_index}</Badge>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => void pomodoro.start()} disabled={!canStart}>
+                {t('Start / Resume', 'Start / Resume')}
+              </Button>
+              <Button variant="outline" onClick={() => void pomodoro.pause()} disabled={!canPause}>
+                {t('Pause', 'Pause')}
+              </Button>
+              <Button variant="danger" onClick={() => void pomodoro.stop()} disabled={!canStop}>
+                {t('Stop', 'Stop')}
+              </Button>
+              <Button variant="outline" onClick={() => void pomodoro.skip()}>
+                {t('Пропустить фазу', 'Skip phase')}
+              </Button>
+              <Button variant="outline" onClick={() => void pomodoro.reset()}>
+                {t('Сброс', 'Reset')}
+              </Button>
+              <Button variant="outline" onClick={() => void refreshStats()}>
+                {t('Обновить статистику', 'Refresh stats')}
+              </Button>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="space-y-1 text-sm">
+                <span className="text-[var(--muted-foreground)]">{t('Фокус (мин)', 'Focus (min)')}</span>
+                <input
+                  type="number"
+                  min={5}
+                  max={180}
+                  className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-sm"
+                  value={pendingConfig.focus_min}
+                  onChange={(event) => applyConfigField('focus_min', event.target.value)}
+                />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-[var(--muted-foreground)]">{t('Короткий перерыв (мин)', 'Short break (min)')}</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={60}
+                  className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-sm"
+                  value={pendingConfig.short_break_min}
+                  onChange={(event) => applyConfigField('short_break_min', event.target.value)}
+                />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-[var(--muted-foreground)]">{t('Длинный перерыв (мин)', 'Long break (min)')}</span>
+                <input
+                  type="number"
+                  min={5}
+                  max={90}
+                  className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-sm"
+                  value={pendingConfig.long_break_min}
+                  onChange={(event) => applyConfigField('long_break_min', event.target.value)}
+                />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-[var(--muted-foreground)]">{t('Длинный каждые N циклов', 'Long every N cycles')}</span>
+                <input
+                  type="number"
+                  min={2}
+                  max={12}
+                  className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-sm"
+                  value={pendingConfig.long_break_every}
+                  onChange={(event) => applyConfigField('long_break_every', event.target.value)}
+                />
+              </label>
+            </div>
+
+            {pomodoro.activeSession ? (
+              <div className="rounded-md border border-[var(--border)] bg-[var(--muted)]/40 p-3 text-sm">
+                <p className="font-medium">{t('Активная focus-сессия', 'Active focus session')}</p>
+                <p className="text-[var(--muted-foreground)]">
+                  {t('Старт', 'Started')} {new Date(pomodoro.activeSession.started_at).toLocaleTimeString()}
+                </p>
+                {pomodoro.activeSession.status ? (
+                  <p className="text-[var(--muted-foreground)]">
+                    {t('Статус', 'Status')}: {pomodoro.activeSession.status}
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <p className="text-sm text-[var(--muted-foreground)]">
+                {t('Активной focus-сессии нет.', 'No active focus session.')}
+              </p>
+            )}
+
+            {pomodoro.notice ? (
+              <p className="text-sm text-[var(--success)]">{pomodoro.notice}</p>
+            ) : null}
+            {pomodoro.error ? (
+              <p className="text-sm text-[var(--danger)]">{pomodoro.error}</p>
+            ) : null}
+          </div>
+        </div>
       </Card>
 
       <Card>
@@ -107,21 +275,14 @@ export function FocusPanel() {
           </div>
         ) : (
           <p className="text-sm text-[var(--muted-foreground)]">
-            {t(
-              'Нажмите "Обновить статистику", чтобы загрузить историю.',
-              'Press "Refresh Stats" to load history.',
-            )}
+            {t('Нажмите "Обновить статистику", чтобы загрузить историю.', 'Press "Refresh stats" to load history.')}
           </p>
         )}
+        {statsError ? (
+          <p className="mt-2 text-sm text-[var(--danger)]">{statsError}</p>
+        ) : null}
       </Card>
     </div>
   )
 }
 
-function localeFormatDuration(
-  t: (ru: string, en: string) => string,
-  durationSec: number,
-): string {
-  const minutes = Math.floor(durationSec / 60)
-  return t(`Сессия завершена: ${minutes} мин`, `Session finished: ${minutes} min`)
-}

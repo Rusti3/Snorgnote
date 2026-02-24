@@ -1,8 +1,9 @@
-import { invoke } from '@tauri-apps/api/core'
+﻿import { invoke } from '@tauri-apps/api/core'
 
 import type {
   DailyPlan,
   DashboardOverview,
+  FocusActiveState,
   FocusSessionView,
   FocusStats,
   InboxItemView,
@@ -26,6 +27,24 @@ const hasTauriRuntime = () =>
 
 const now = () => new Date().toISOString()
 const today = () => new Date().toISOString().slice(0, 10)
+
+function durationBetweenSeconds(startedAt: string, endedAt: string): number {
+  const startMs = new Date(startedAt).getTime()
+  const endMs = new Date(endedAt).getTime()
+  if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
+    return 0
+  }
+  return Math.max(0, Math.floor((endMs - startMs) / 1000))
+}
+
+function computeMockElapsedSec(session: FocusSessionView, referenceAt: string): number {
+  const base = durationBetweenSeconds(session.started_at, referenceAt)
+  const pausedTotal = session.paused_total_sec ?? 0
+  const currentPause = session.paused_at
+    ? durationBetweenSeconds(session.paused_at, referenceAt)
+    : 0
+  return Math.max(0, base - pausedTotal - currentPause)
+}
 
 const mockState = {
   notes: [] as NoteDocument[],
@@ -436,14 +455,103 @@ export const api = {
     if (hasTauriRuntime()) {
       return tauriInvoke('focus_start', { projectId, taskId })
     }
+    if (mockState.focusActive) {
+      throw new Error('Фокус-сессия уже запущена')
+    }
     const session: FocusSessionView = {
       id: crypto.randomUUID(),
       project_id: projectId,
       task_id: taskId,
       started_at: now(),
+      paused_total_sec: 0,
+      status: 'running',
+      elapsed_sec: 0,
     }
     mockState.focusActive = session
     return session
+  },
+
+  async focusPause(): Promise<FocusSessionView> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('focus_pause')
+    }
+    if (!mockState.focusActive) {
+      throw new Error('Нет активной фокус-сессии')
+    }
+    if (mockState.focusActive.paused_at) {
+      throw new Error('Фокус-сессия уже на паузе')
+    }
+
+    const pausedAt = now()
+    const next: FocusSessionView = {
+      ...mockState.focusActive,
+      paused_at: pausedAt,
+      status: 'paused',
+      elapsed_sec: computeMockElapsedSec(mockState.focusActive, pausedAt),
+    }
+    mockState.focusActive = next
+    return next
+  },
+
+  async focusResume(): Promise<FocusSessionView> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('focus_resume')
+    }
+    if (!mockState.focusActive) {
+      throw new Error('Нет активной фокус-сессии')
+    }
+    if (!mockState.focusActive.paused_at) {
+      throw new Error('Активная сессия не находится на паузе')
+    }
+
+    const resumedAt = now()
+    const pausedDelta = durationBetweenSeconds(mockState.focusActive.paused_at, resumedAt)
+    const pausedTotal = (mockState.focusActive.paused_total_sec ?? 0) + pausedDelta
+    const next: FocusSessionView = {
+      ...mockState.focusActive,
+      paused_at: undefined,
+      paused_total_sec: pausedTotal,
+      status: 'running',
+      elapsed_sec: computeMockElapsedSec(
+        {
+          ...mockState.focusActive,
+          paused_at: undefined,
+          paused_total_sec: pausedTotal,
+        },
+        resumedAt,
+      ),
+    }
+    mockState.focusActive = next
+    return next
+  },
+
+  async focusActive(): Promise<FocusActiveState> {
+    if (hasTauriRuntime()) {
+      const session = await tauriInvoke<FocusSessionView | null>('focus_active')
+      if (!session) {
+        return { active: false }
+      }
+      return { active: true, session }
+    }
+
+    if (!mockState.focusActive) {
+      return { active: false }
+    }
+
+    const referenceAt = now()
+    const status: FocusSessionView['status'] = mockState.focusActive.paused_at
+      ? 'paused'
+      : 'running'
+    const session: FocusSessionView = {
+      ...mockState.focusActive,
+      status,
+      elapsed_sec: computeMockElapsedSec(mockState.focusActive, referenceAt),
+    }
+    mockState.focusActive = session
+    return {
+      active: true,
+      session,
+    }
   },
 
   async focusStop(): Promise<FocusSessionView> {
@@ -453,12 +561,23 @@ export const api = {
     if (!mockState.focusActive) {
       throw new Error('Нет активной фокус-сессии')
     }
-    const startedAt = new Date(mockState.focusActive.started_at).getTime()
-    const durationSec = Math.floor((Date.now() - startedAt) / 1000)
+
+    const endedAt = now()
+    const extraPaused = mockState.focusActive.paused_at
+      ? durationBetweenSeconds(mockState.focusActive.paused_at, endedAt)
+      : 0
+    const pausedTotal = (mockState.focusActive.paused_total_sec ?? 0) + extraPaused
+    const baseDuration = durationBetweenSeconds(mockState.focusActive.started_at, endedAt)
+    const durationSec = Math.max(0, baseDuration - pausedTotal)
+
     const ended: FocusSessionView = {
       ...mockState.focusActive,
-      ended_at: now(),
-      duration_sec: Math.max(0, durationSec),
+      ended_at: endedAt,
+      paused_at: undefined,
+      paused_total_sec: pausedTotal,
+      duration_sec: durationSec,
+      status: 'stopped',
+      elapsed_sec: durationSec,
     }
     mockState.focusHistory.push(ended)
     mockState.focusActive = null
@@ -615,3 +734,4 @@ export const api = {
     }
   },
 }
+

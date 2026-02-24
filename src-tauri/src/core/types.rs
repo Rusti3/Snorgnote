@@ -102,7 +102,11 @@ pub struct FocusSessionView {
     pub task_id: Option<String>,
     pub started_at: String,
     pub ended_at: Option<String>,
+    pub paused_at: Option<String>,
+    pub paused_total_sec: Option<i64>,
     pub duration_sec: Option<i64>,
+    pub status: Option<String>,
+    pub elapsed_sec: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize)]

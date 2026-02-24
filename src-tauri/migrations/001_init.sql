@@ -113,6 +113,8 @@ CREATE TABLE IF NOT EXISTS focus_sessions (
   task_id TEXT,
   started_at TEXT NOT NULL,
   ended_at TEXT,
+  paused_at TEXT,
+  paused_total_sec INTEGER NOT NULL DEFAULT 0,
   duration_sec INTEGER,
   mood_before INTEGER,
   mood_after INTEGER,

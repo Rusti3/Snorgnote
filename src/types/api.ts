@@ -87,7 +87,16 @@ export interface FocusSessionView {
   task_id?: string
   started_at: string
   ended_at?: string
+  paused_at?: string
+  paused_total_sec?: number
   duration_sec?: number
+  status?: 'running' | 'paused' | 'stopped'
+  elapsed_sec?: number
+}
+
+export interface FocusActiveState {
+  active: boolean
+  session?: FocusSessionView
 }
 
 export interface ProjectFocusStat {

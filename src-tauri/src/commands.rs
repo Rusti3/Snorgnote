@@ -189,6 +189,23 @@ pub fn focus_stop(state: State<'_, AppState>) -> Result<crate::core::FocusSessio
 }
 
 #[tauri::command]
+pub fn focus_pause(state: State<'_, AppState>) -> Result<crate::core::FocusSessionView, String> {
+    state.focus_pause().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn focus_resume(state: State<'_, AppState>) -> Result<crate::core::FocusSessionView, String> {
+    state.focus_resume().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn focus_active(
+    state: State<'_, AppState>,
+) -> Result<Option<crate::core::FocusSessionView>, String> {
+    state.focus_active().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn focus_stats(
     state: State<'_, AppState>,
     days: Option<u32>,

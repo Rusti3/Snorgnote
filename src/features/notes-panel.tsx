@@ -1,4 +1,4 @@
-import { RotateCcw, Trash, Trash2 } from 'lucide-react'
+﻿import { RotateCcw, Trash, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { VirtualList } from '../components/virtual-list'
@@ -14,6 +14,7 @@ export function NotesPanel() {
   const [notes, setNotes] = useState<NoteSummary[]>([])
   const [trashedNotes, setTrashedNotes] = useState<TrashedNoteSummary[]>([])
   const [selectedPath, setSelectedPath] = useState<string>('')
+  const [selectedForCards, setSelectedForCards] = useState<string[]>([])
   const [editor, setEditor] = useState('')
   const [newPath, setNewPath] = useState('Notes/new-note.md')
   const [status, setStatus] = useState<string | null>(null)
@@ -23,6 +24,8 @@ export function NotesPanel() {
     () => notes.find((note) => note.path === selectedPath) ?? null,
     [notes, selectedPath],
   )
+
+  const selectedForCardsCount = selectedForCards.length
 
   const loadData = useCallback(async () => {
     setError(null)
@@ -40,6 +43,7 @@ export function NotesPanel() {
         }
         return notesResult[0]?.path ?? ''
       })
+      setSelectedForCards((current) => current.filter((path) => notesResult.some((note) => note.path === path)))
     } catch (err) {
       setError(
         err instanceof Error
@@ -69,6 +73,34 @@ export function NotesPanel() {
       }
     })()
   }, [selectedPath, t])
+
+  function toggleSelectedForCards(path: string) {
+    setSelectedForCards((current) => {
+      if (current.includes(path)) {
+        return current.filter((item) => item !== path)
+      }
+      return [...current, path]
+    })
+  }
+
+  async function onSendSelectedToCards() {
+    if (selectedForCards.length === 0) return
+    setError(null)
+    setStatus(null)
+    try {
+      const report = await api.flashcardsCreateFromNotes(selectedForCards)
+      setStatus(
+        `${t('Карточки создано', 'Cards created')}: ${report.created}. ${t('Пропущено дубликатов', 'Skipped duplicates')}: ${report.skipped_existing}`,
+      )
+      setSelectedForCards([])
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('Не удалось отправить заметки в карточки', 'Failed to create cards from notes'),
+      )
+    }
+  }
 
   async function onSave(pathOverride?: string) {
     const path = (pathOverride ?? selectedPath) || newPath
@@ -174,12 +206,33 @@ export function NotesPanel() {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
+    <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
       <Card className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <h3 className="text-lg font-semibold">{t('Заметки Vault', 'Vault Notes')}</h3>
-          <Badge>{notes.length}</Badge>
+          <div className="flex items-center gap-2">
+            <Badge>{notes.length}</Badge>
+            <Badge>{t('Выбрано', 'Selected')}: {selectedForCardsCount}</Badge>
+          </div>
         </div>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Button
+            variant="outline"
+            onClick={() => void onSendSelectedToCards()}
+            disabled={selectedForCards.length === 0}
+          >
+            {t('Отправить в карточки', 'Send to cards')}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setSelectedForCards(notes.map((note) => note.path))}
+            disabled={notes.length === 0}
+          >
+            {t('Выбрать все', 'Select all')}
+          </Button>
+        </div>
+
         <div className="rounded-md border border-[var(--border)] p-2">
           <label className="mb-1 block text-xs text-[var(--muted-foreground)]">
             {t('Путь для создания / Сохранить как', 'Create / Save As Path')}
@@ -200,7 +253,7 @@ export function NotesPanel() {
 
         <VirtualList
           items={notes}
-          itemHeight={64}
+          itemHeight={74}
           maxHeightClassName="max-h-[42vh]"
           getKey={(note) => note.id}
           emptyState={(
@@ -209,17 +262,28 @@ export function NotesPanel() {
             </p>
           )}
           renderItem={(note) => (
-            <button
-              className={`w-full rounded-md border px-3 py-2 text-left text-sm transition-colors ${
-                note.path === selectedPath
-                  ? 'border-[var(--primary)] bg-[var(--primary)]/10'
-                  : 'border-[var(--border)] hover:bg-[var(--muted)]'
-              }`}
-              onClick={() => setSelectedPath(note.path)}
-            >
-              <div className="truncate font-medium">{note.title}</div>
-              <div className="truncate text-xs text-[var(--muted-foreground)]">{note.path}</div>
-            </button>
+            <div className="rounded-md border border-[var(--border)] px-2 py-2">
+              <div className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4"
+                  checked={selectedForCards.includes(note.path)}
+                  onChange={() => toggleSelectedForCards(note.path)}
+                />
+                <button
+                  className={`flex-1 rounded-md px-2 py-1 text-left text-sm transition-colors ${
+                    note.path === selectedPath
+                      ? 'bg-[var(--primary)]/10'
+                      : 'hover:bg-[var(--muted)]'
+                  }`}
+                  onClick={() => setSelectedPath(note.path)}
+                  type="button"
+                >
+                  <div className="truncate font-medium">{note.title}</div>
+                  <div className="truncate text-xs text-[var(--muted-foreground)]">{note.path}</div>
+                </button>
+              </div>
+            </div>
           )}
         />
 
@@ -283,7 +347,7 @@ export function NotesPanel() {
       </Card>
 
       <Card className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <div>
             <h3 className="text-lg font-semibold">
               {selectedSummary?.title ?? t('Markdown-редактор', 'Markdown Editor')}

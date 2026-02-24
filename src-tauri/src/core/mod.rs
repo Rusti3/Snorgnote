@@ -1,5 +1,6 @@
 pub mod db;
 pub mod deeplink;
+pub mod flashcards;
 pub mod focus;
 pub mod jobs;
 pub mod planner;

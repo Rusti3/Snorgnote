@@ -236,6 +236,90 @@ pub fn focus_history(
 }
 
 #[tauri::command]
+pub fn flashcards_create_manual(
+    state: State<'_, AppState>,
+    front_md: String,
+    back_md: String,
+) -> Result<crate::core::FlashcardView, String> {
+    state
+        .flashcards_create_manual(front_md, back_md)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn flashcards_create_from_notes(
+    state: State<'_, AppState>,
+    note_paths: Vec<String>,
+) -> Result<crate::core::FlashcardsCreateFromNotesReport, String> {
+    state
+        .flashcards_create_from_notes(note_paths)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn flashcards_list(
+    state: State<'_, AppState>,
+    limit: Option<u32>,
+    offset: Option<u32>,
+    due_only: Option<bool>,
+    query: Option<String>,
+    source_note_path: Option<String>,
+) -> Result<crate::core::FlashcardPage, String> {
+    state
+        .flashcards_list(
+            limit.unwrap_or(20),
+            offset.unwrap_or(0),
+            due_only,
+            query,
+            source_note_path,
+        )
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn flashcards_get(
+    state: State<'_, AppState>,
+    card_id: String,
+) -> Result<crate::core::FlashcardView, String> {
+    state
+        .flashcards_get(card_id)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn flashcards_update(
+    state: State<'_, AppState>,
+    card_id: String,
+    front_md: Option<String>,
+    back_md: Option<String>,
+    status: Option<String>,
+) -> Result<crate::core::FlashcardView, String> {
+    state
+        .flashcards_update(card_id, front_md, back_md, status)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn flashcards_review_next(
+    state: State<'_, AppState>,
+) -> Result<Option<crate::core::FlashcardView>, String> {
+    state
+        .flashcards_review_next()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn flashcards_submit_review(
+    state: State<'_, AppState>,
+    card_id: String,
+    grade: String,
+) -> Result<crate::core::FlashcardReviewResult, String> {
+    state
+        .flashcards_submit_review(card_id, grade)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn dashboard_get_overview(
     state: State<'_, AppState>,
 ) -> Result<crate::core::DashboardOverview, String> {

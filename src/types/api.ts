@@ -127,6 +127,46 @@ export interface FocusHistoryPage {
   offset: number
 }
 
+export type FlashcardStatus = 'active' | 'suspended' | 'archived'
+export type FlashcardGrade = 'again' | 'hard' | 'good' | 'easy'
+
+export interface FlashcardView {
+  id: string
+  front_md: string
+  back_md: string
+  source_note_id?: string
+  source_note_path?: string
+  vault_path: string
+  status: FlashcardStatus
+  is_manual: boolean
+  due_at: string
+  last_reviewed_at?: string
+  interval_days: number
+  ease_factor: number
+  reps: number
+  lapses: number
+  created_at: string
+  updated_at: string
+}
+
+export interface FlashcardPage {
+  items: FlashcardView[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface FlashcardsCreateFromNotesReport {
+  created: number
+  skipped_existing: number
+  items: FlashcardView[]
+}
+
+export interface FlashcardReviewResult {
+  grade: FlashcardGrade
+  card: FlashcardView
+}
+
 export interface DashboardOverview {
   notes: number
   inbox_new: number

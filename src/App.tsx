@@ -1,9 +1,10 @@
-import { Brain, CalendarDays, Clock4, FolderKanban, Inbox, ScrollText, Settings } from 'lucide-react'
+п»їimport { BookOpen, Brain, CalendarDays, Clock4, FolderKanban, Inbox, ScrollText, Settings } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { Badge } from './components/ui/badge'
 import { Card } from './components/ui/card'
 import { WindowTitlebar } from './components/window-titlebar'
+import { FlashcardsPanel } from './features/flashcards-panel'
 import { FocusPanel } from './features/focus-panel'
 import { InboxPanel } from './features/inbox-panel'
 import { NotesPanel } from './features/notes-panel'
@@ -14,7 +15,7 @@ import { StatsPanel } from './features/stats-panel'
 import { api } from './lib/api'
 import { useLocale } from './lib/locale'
 
-type TabId = 'inbox' | 'notes' | 'planning' | 'projects' | 'focus' | 'stats' | 'settings'
+type TabId = 'inbox' | 'notes' | 'flashcards' | 'planning' | 'projects' | 'focus' | 'stats' | 'settings'
 
 export default function App() {
   const { t } = useLocale()
@@ -24,6 +25,7 @@ export default function App() {
     () => [
       { id: 'inbox', label: t('Р’С…РѕРґСЏС‰РёРµ', 'Inbox'), icon: Inbox },
       { id: 'notes', label: t('Р—Р°РјРµС‚РєРё', 'Notes'), icon: ScrollText },
+      { id: 'flashcards', label: t('РљР°СЂС‚РѕС‡РєРё', 'Flashcards'), icon: BookOpen },
       { id: 'planning', label: t('Р”РµРЅСЊ/РќРµРґРµР»СЏ', 'Daily/Weekly'), icon: CalendarDays },
       { id: 'projects', label: t('РџСЂРѕРµРєС‚С‹', 'Projects'), icon: FolderKanban },
       { id: 'focus', label: t('Р¤РѕРєСѓСЃ', 'Focus'), icon: Clock4 },
@@ -90,14 +92,15 @@ export default function App() {
             <h2 className="font-display text-2xl font-semibold">{title}</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
               {t(
-                'v0.1.20: Inbox обновляется автоматически при клипе из браузера, одинаковые клипы по URL+контенту не дублируются.',
-                'v0.1.20: Inbox auto-refreshes for browser clips, and identical URL+content clips are deduplicated.',
+                'v0.1.23: РґРѕР±Р°РІР»РµРЅС‹ РєР°СЂС‚РѕС‡РєРё Flashcards СЃ review-СЂРµР¶РёРјРѕРј Рё РѕС‚РїСЂР°РІРєРѕР№ РІС‹Р±СЂР°РЅРЅС‹С… Р·Р°РјРµС‚РѕРє РІ РєР°СЂС‚РѕС‡РєРё.',
+                'v0.1.23: Flashcards tab now supports review mode and creating cards from selected notes.',
               )}
             </p>
           </Card>
 
           {tab === 'inbox' ? <InboxPanel /> : null}
           {tab === 'notes' ? <NotesPanel /> : null}
+          {tab === 'flashcards' ? <FlashcardsPanel /> : null}
           {tab === 'planning' ? <PlanningPanel /> : null}
           {tab === 'projects' ? <ProjectsPanel /> : null}
           {tab === 'focus' ? <FocusPanel /> : null}
@@ -108,4 +111,3 @@ export default function App() {
     </div>
   )
 }
-

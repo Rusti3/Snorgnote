@@ -142,6 +142,47 @@ pub struct FocusHistoryPage {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct FlashcardView {
+    pub id: String,
+    pub front_md: String,
+    pub back_md: String,
+    pub source_note_id: Option<String>,
+    pub source_note_path: Option<String>,
+    pub vault_path: String,
+    pub status: String,
+    pub is_manual: bool,
+    pub due_at: String,
+    pub last_reviewed_at: Option<String>,
+    pub interval_days: i64,
+    pub ease_factor: f64,
+    pub reps: i64,
+    pub lapses: i64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FlashcardPage {
+    pub items: Vec<FlashcardView>,
+    pub total: i64,
+    pub limit: u32,
+    pub offset: u32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FlashcardsCreateFromNotesReport {
+    pub created: i64,
+    pub skipped_existing: i64,
+    pub items: Vec<FlashcardView>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FlashcardReviewResult {
+    pub grade: String,
+    pub card: FlashcardView,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct DashboardOverview {
     pub notes: i64,
     pub inbox_new: i64,

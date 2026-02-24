@@ -12,7 +12,7 @@
 
 ## Статус
 
-Текущая версия: `v0.1.22`.
+Текущая версия: `v0.1.23`.
 
 Реализовано:
 
@@ -210,4 +210,20 @@ npm run dev
 - Добавлены тесты:
 - Frontend: `notifications.test.ts`, проверка `api.focusHistory` в `api-focus.test.ts`;
 - Backend: `focus_history_returns_completed_sessions_only`, `focus_history_supports_project_filter_and_pagination`.
+
+### v0.1.23
+
+- Добавлена новая вкладка `Flashcards` с anki-подобным базовым режимом повторения:
+- показ front/back;
+- оценки `Again / Hard / Good / Easy`;
+- пересчет `due_at`, `interval_days`, `ease_factor`, `reps`, `lapses`.
+- Добавлена гибридная модель хранения карточек:
+- SQLite таблицы `flashcards` и `flashcard_reviews` (миграция `005_flashcards.sql`);
+- markdown mirror для каждой карточки в `vault/Flashcards/<id>.md`.
+- Добавлены backend-команды flashcards (create/list/get/update/review) через Tauri.
+- В `Notes` добавлен множественный выбор и массовая отправка выбранных заметок в карточки (`1 заметка = 1 карточка`, с обязательной связью на source note).
+- Добавлены новые типы и API-методы flashcards в frontend (`src/types/api.ts`, `src/lib/api.ts`) + mock-реализация.
+- Добавлены тесты:
+- Frontend: `api-flashcards.test.ts`;
+- Backend: `core::flashcards::tests` (создание, импорт из заметок, дедуп, review-алгоритм, due-очередь).
 

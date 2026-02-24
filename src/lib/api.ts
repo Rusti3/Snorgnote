@@ -3,6 +3,12 @@
 import type {
   DailyPlan,
   DashboardOverview,
+  FlashcardGrade,
+  FlashcardPage,
+  FlashcardReviewResult,
+  FlashcardStatus,
+  FlashcardView,
+  FlashcardsCreateFromNotesReport,
   FocusActiveState,
   FocusHistoryItem,
   FocusHistoryPage,
@@ -62,6 +68,74 @@ function normalizePageOffset(offset: number | undefined): number {
   return Math.max(0, Math.floor(offset))
 }
 
+function normalizeFlashcardStatus(status: string | undefined): FlashcardStatus {
+  if (status === 'suspended' || status === 'archived') {
+    return status
+  }
+  return 'active'
+}
+
+function compareIsoAsc(left: string, right: string): number {
+  return left.localeCompare(right)
+}
+
+function applyFlashcardGrade(card: FlashcardView, grade: FlashcardGrade): FlashcardView {
+  const nowDate = new Date()
+  const nowIso = nowDate.toISOString()
+  const currentInterval = Math.max(0, Math.floor(card.interval_days))
+  let intervalDays = currentInterval
+  let easeFactor = card.ease_factor
+  let reps = card.reps
+  let lapses = card.lapses
+  let dueAt = nowIso
+
+  if (grade === 'again') {
+    lapses += 1
+    reps = 0
+    intervalDays = 0
+    easeFactor = Math.max(1.3, easeFactor - 0.2)
+    dueAt = new Date(nowDate.getTime() + 10 * 60 * 1000).toISOString()
+  } else if (grade === 'hard') {
+    reps += 1
+    easeFactor = Math.max(1.3, easeFactor - 0.15)
+    intervalDays = Math.max(1, Math.round(Math.max(1, currentInterval) * 1.2))
+    dueAt = new Date(nowDate.getTime() + intervalDays * 24 * 60 * 60 * 1000).toISOString()
+  } else if (grade === 'good') {
+    reps += 1
+    if (reps === 1) {
+      intervalDays = 1
+    } else if (reps === 2) {
+      intervalDays = 3
+    } else {
+      intervalDays = Math.max(1, Math.round(Math.max(1, currentInterval) * easeFactor))
+    }
+    dueAt = new Date(nowDate.getTime() + intervalDays * 24 * 60 * 60 * 1000).toISOString()
+  } else {
+    reps += 1
+    easeFactor = easeFactor + 0.15
+    if (reps === 1) {
+      intervalDays = 4
+    } else {
+      intervalDays = Math.max(
+        1,
+        Math.round(Math.max(1, currentInterval) * easeFactor * 1.3),
+      )
+    }
+    dueAt = new Date(nowDate.getTime() + intervalDays * 24 * 60 * 60 * 1000).toISOString()
+  }
+
+  return {
+    ...card,
+    due_at: dueAt,
+    last_reviewed_at: nowIso,
+    interval_days: intervalDays,
+    ease_factor: easeFactor,
+    reps,
+    lapses,
+    updated_at: nowIso,
+  }
+}
+
 const mockState = {
   notes: [] as NoteDocument[],
   notesTrash: [] as Array<{
@@ -95,6 +169,7 @@ const mockState = {
   ] as ProjectState[],
   focusActive: null as FocusSessionView | null,
   focusHistory: [] as FocusSessionView[],
+  flashcards: [] as FlashcardView[],
   telegram: {
     botToken: '',
     username: '',
@@ -670,6 +745,226 @@ export const api = {
       limit,
       offset,
     }
+  },
+
+  async flashcardsCreateManual(input: {
+    frontMd: string
+    backMd: string
+  }): Promise<FlashcardView> {
+    const frontMd = input.frontMd.trim()
+    const backMd = input.backMd.trim()
+    if (!frontMd) {
+      throw new Error('Лицевая сторона карточки не может быть пустой')
+    }
+    if (!backMd) {
+      throw new Error('Обратная сторона карточки не может быть пустой')
+    }
+
+    if (hasTauriRuntime()) {
+      return tauriInvoke('flashcards_create_manual', { frontMd, backMd })
+    }
+
+    const timestamp = now()
+    const id = crypto.randomUUID()
+    const card: FlashcardView = {
+      id,
+      front_md: frontMd,
+      back_md: backMd,
+      vault_path: `Flashcards/${id}.md`,
+      status: 'active',
+      is_manual: true,
+      due_at: timestamp,
+      interval_days: 0,
+      ease_factor: 2.5,
+      reps: 0,
+      lapses: 0,
+      created_at: timestamp,
+      updated_at: timestamp,
+    }
+    mockState.flashcards.unshift(card)
+    return card
+  },
+
+  async flashcardsCreateFromNotes(notePaths: string[]): Promise<FlashcardsCreateFromNotesReport> {
+    const normalized = Array.from(
+      new Set(
+        notePaths
+          .map((path) => path.trim().replaceAll('\\', '/'))
+          .filter((path) => Boolean(path)),
+      ),
+    )
+    if (hasTauriRuntime()) {
+      return tauriInvoke('flashcards_create_from_notes', { notePaths: normalized })
+    }
+
+    const items: FlashcardView[] = []
+    let skippedExisting = 0
+    for (const path of normalized) {
+      const note = mockState.notes.find((candidate) => candidate.path === path)
+      if (!note) {
+        throw new Error(`Заметка не найдена: ${path}`)
+      }
+      const exists = mockState.flashcards.some(
+        (card) => card.source_note_id === note.id || card.source_note_path === note.path,
+      )
+      if (exists) {
+        skippedExisting += 1
+        continue
+      }
+      const timestamp = now()
+      const id = crypto.randomUUID()
+      const card: FlashcardView = {
+        id,
+        front_md: note.title,
+        back_md: note.body_md,
+        source_note_id: note.id,
+        source_note_path: note.path,
+        vault_path: `Flashcards/${id}.md`,
+        status: 'active',
+        is_manual: false,
+        due_at: timestamp,
+        interval_days: 0,
+        ease_factor: 2.5,
+        reps: 0,
+        lapses: 0,
+        created_at: timestamp,
+        updated_at: timestamp,
+      }
+      mockState.flashcards.unshift(card)
+      items.push(card)
+    }
+
+    return {
+      created: items.length,
+      skipped_existing: skippedExisting,
+      items,
+    }
+  },
+
+  async flashcardsList(input?: {
+    limit?: number
+    offset?: number
+    dueOnly?: boolean
+    query?: string
+    sourceNotePath?: string
+  }): Promise<FlashcardPage> {
+    const limit = normalizePageLimit(input?.limit)
+    const offset = normalizePageOffset(input?.offset)
+    const dueOnly = Boolean(input?.dueOnly)
+    const query = input?.query?.trim().toLowerCase()
+    const sourceNotePath = input?.sourceNotePath?.trim()
+
+    if (hasTauriRuntime()) {
+      return tauriInvoke('flashcards_list', {
+        limit,
+        offset,
+        dueOnly,
+        query: query || undefined,
+        sourceNotePath,
+      })
+    }
+
+    const nowIso = now()
+    const filtered = mockState.flashcards
+      .filter((card) => !dueOnly || compareIsoAsc(card.due_at, nowIso) <= 0)
+      .filter((card) => !sourceNotePath || card.source_note_path === sourceNotePath)
+      .filter((card) => {
+        if (!query) return true
+        const haystack = `${card.front_md}\n${card.back_md}`.toLowerCase()
+        return haystack.includes(query)
+      })
+      .sort((left, right) => {
+        const byDue = compareIsoAsc(left.due_at, right.due_at)
+        if (byDue !== 0) return byDue
+        return compareIsoAsc(right.created_at, left.created_at)
+      })
+
+    return {
+      items: filtered.slice(offset, offset + limit),
+      total: filtered.length,
+      limit,
+      offset,
+    }
+  },
+
+  async flashcardsGet(cardId: string): Promise<FlashcardView> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('flashcards_get', { cardId })
+    }
+    const card = mockState.flashcards.find((candidate) => candidate.id === cardId)
+    if (!card) {
+      throw new Error(`Карточка не найдена: ${cardId}`)
+    }
+    return card
+  },
+
+  async flashcardsUpdate(
+    cardId: string,
+    input: {
+      frontMd?: string
+      backMd?: string
+      status?: FlashcardStatus
+    },
+  ): Promise<FlashcardView> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('flashcards_update', {
+        cardId,
+        frontMd: input.frontMd,
+        backMd: input.backMd,
+        status: input.status,
+      })
+    }
+
+    const idx = mockState.flashcards.findIndex((candidate) => candidate.id === cardId)
+    if (idx < 0) {
+      throw new Error(`Карточка не найдена: ${cardId}`)
+    }
+    const current = mockState.flashcards[idx]
+    const next: FlashcardView = {
+      ...current,
+      front_md: input.frontMd?.trim() || current.front_md,
+      back_md: input.backMd?.trim() || current.back_md,
+      status: normalizeFlashcardStatus(input.status),
+      updated_at: now(),
+    }
+    if (!next.front_md.trim() || !next.back_md.trim()) {
+      throw new Error('Стороны карточки не могут быть пустыми')
+    }
+    mockState.flashcards[idx] = next
+    return next
+  },
+
+  async flashcardsReviewNext(): Promise<FlashcardView | null> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('flashcards_review_next')
+    }
+    const nowIso = now()
+    const due = mockState.flashcards
+      .filter((card) => card.status === 'active')
+      .filter((card) => compareIsoAsc(card.due_at, nowIso) <= 0)
+      .sort((left, right) => compareIsoAsc(left.due_at, right.due_at))
+    return due[0] ?? null
+  },
+
+  async flashcardsSubmitReview(
+    cardId: string,
+    grade: FlashcardGrade,
+  ): Promise<FlashcardReviewResult> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('flashcards_submit_review', { cardId, grade })
+    }
+
+    const idx = mockState.flashcards.findIndex((candidate) => candidate.id === cardId)
+    if (idx < 0) {
+      throw new Error(`Карточка не найдена: ${cardId}`)
+    }
+    const current = mockState.flashcards[idx]
+    if (current.status !== 'active') {
+      throw new Error('Только активные карточки можно отправлять на повторение')
+    }
+    const updated = applyFlashcardGrade(current, grade)
+    mockState.flashcards[idx] = updated
+    return { grade, card: updated }
   },
 
   async dashboardGetOverview(): Promise<DashboardOverview> {

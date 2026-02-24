@@ -16,6 +16,9 @@ use walkdir::WalkDir;
 
 use crate::core::{
     db::{init_schema, BUILTIN_SKILLS, DEFAULT_PROJECT_ID},
+    deeplink::{
+        browser_tags, build_inbox_content, normalize_browser_source, parse_browser_deeplink,
+    },
     types::{
         InboxItemView, JobRunReport, NoteDocument, NoteSummary, SkillConfig, SkillRecord,
         SkillRunResult, TrashedInboxItem, TrashedNoteSummary,
@@ -691,15 +694,58 @@ impl AppState {
         tags: Vec<String>,
         project_hint: Option<String>,
     ) -> Result<InboxItemView> {
+        self.inbox_add_item_with_raw_payload(source, content_text, tags, project_hint, &json!({}))
+    }
+
+    pub fn ingest_browser_deeplink(&self, uri: &str) -> Result<InboxItemView> {
+        let payload = parse_browser_deeplink(uri)?;
+        let source = normalize_browser_source(payload.source.as_deref()).to_string();
+        let tags = browser_tags(&payload);
+        let content_text = build_inbox_content(&payload);
+        let raw_payload = json!({
+            "transport": "deeplink",
+            "uri": uri,
+            "payload": payload,
+        });
+
+        self.inbox_add_item_with_raw_payload(source, content_text, tags, None, &raw_payload)
+    }
+
+    fn inbox_add_item_with_raw_payload(
+        &self,
+        source: String,
+        content_text: String,
+        tags: Vec<String>,
+        project_hint: Option<String>,
+        raw_payload: &Value,
+    ) -> Result<InboxItemView> {
+        let source = source.trim().to_string();
+        if source.is_empty() {
+            bail!("source cannot be empty");
+        }
+        let content_text = content_text.trim().to_string();
+        if content_text.is_empty() {
+            bail!("content_text cannot be empty");
+        }
+        let tags: Vec<String> = tags
+            .into_iter()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .collect();
+        let project_hint = project_hint
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+
         let conn = self.conn()?;
         let id = Uuid::new_v4().to_string();
         let now = now_rfc3339();
         let tags_json = serde_json::to_string(&tags)?;
+        let raw_payload_json = serde_json::to_string(raw_payload)?;
 
         conn.execute(
       "INSERT INTO inbox_items (id, source, raw_payload_json, content_text, created_at, updated_at, status, project_hint, tags_json)
-       VALUES (?1, ?2, '{}', ?3, ?4, ?4, 'new', ?5, ?6)",
-      params![id, source, content_text, now, project_hint, tags_json],
+       VALUES (?1, ?2, ?3, ?4, ?5, ?5, 'new', ?6, ?7)",
+      params![id, source, raw_payload_json, content_text, now, project_hint, tags_json],
     )?;
 
         self.insert_event(
@@ -1167,9 +1213,11 @@ mod tests {
     use std::{fs, thread, time::Duration};
 
     use anyhow::Result;
+    use serde_json::Value;
     use tempfile::tempdir;
 
     use super::AppState;
+    use crate::core::deeplink::{encode_payload_to_deeplink, BrowserClipPayload, BrowserClipType};
 
     #[test]
     fn vault_delete_moves_note_to_trash_and_hides_from_list() -> Result<()> {
@@ -1294,6 +1342,7 @@ mod tests {
 
         let abs_path = state.resolve_markdown_path(path)?;
         fs::remove_file(abs_path)?;
+        thread::sleep(Duration::from_millis(900));
 
         let list_after_delete = state.vault_list_notes()?;
         assert!(!list_after_delete.iter().any(|note| note.path == path));
@@ -1399,6 +1448,82 @@ mod tests {
         let visible = state.inbox_list(None)?;
         assert!(visible.iter().any(|item| item.id == keep.id));
         assert!(!visible.iter().any(|item| item.id == trashed.id));
+
+        Ok(())
+    }
+
+    #[test]
+    fn inbox_add_item_keeps_empty_raw_payload_json() -> Result<()> {
+        let temp = tempdir()?;
+        let state = AppState::for_test(temp.path())?;
+
+        let item = state.inbox_add_item(
+            "quick_note".to_string(),
+            "manual capture".to_string(),
+            vec!["tag".to_string()],
+            None,
+        )?;
+
+        let conn = state.conn()?;
+        let raw_payload_json: String = conn.query_row(
+            "SELECT raw_payload_json FROM inbox_items WHERE id = ?1",
+            rusqlite::params![item.id],
+            |row| row.get(0),
+        )?;
+        let parsed: Value = serde_json::from_str(&raw_payload_json)?;
+        assert_eq!(parsed, serde_json::json!({}));
+
+        Ok(())
+    }
+
+    #[test]
+    fn ingest_browser_deeplink_saves_browser_item_with_raw_payload() -> Result<()> {
+        let temp = tempdir()?;
+        let state = AppState::for_test(temp.path())?;
+        let payload = BrowserClipPayload {
+            clip_type: BrowserClipType::Selection,
+            title: "Rust ownership".to_string(),
+            url: "https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html".to_string(),
+            content_markdown: "## key\n\nborrow checker rules.".to_string(),
+            created_at: "2026-02-24T11:20:00.000Z".to_string(),
+            source: Some("web-clipper".to_string()),
+        };
+        let uri = encode_payload_to_deeplink(&payload)?;
+
+        let item = state.ingest_browser_deeplink(&uri)?;
+        assert_eq!(item.source, "browser");
+        assert!(item.tags.contains(&"browser".to_string()));
+        assert!(item.tags.contains(&"web-clipper".to_string()));
+        assert!(item.tags.contains(&"selection".to_string()));
+        assert!(item.content_text.contains("Rust ownership"));
+
+        let conn = state.conn()?;
+        let (source, raw_payload_json): (String, String) = conn.query_row(
+            "SELECT source, raw_payload_json FROM inbox_items WHERE id = ?1",
+            rusqlite::params![item.id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )?;
+        assert_eq!(source, "browser");
+
+        let parsed_raw: Value = serde_json::from_str(&raw_payload_json)?;
+        assert_eq!(parsed_raw["transport"], "deeplink");
+        assert_eq!(parsed_raw["payload"]["source"], "web-clipper");
+        assert_eq!(parsed_raw["payload"]["title"], "Rust ownership");
+
+        Ok(())
+    }
+
+    #[test]
+    fn ingest_browser_deeplink_rejects_invalid_payload() -> Result<()> {
+        let temp = tempdir()?;
+        let state = AppState::for_test(temp.path())?;
+
+        let error = state
+            .ingest_browser_deeplink("snorgnote://new")
+            .expect_err("missing data must fail");
+        assert!(error
+            .to_string()
+            .contains("missing required query parameter"));
 
         Ok(())
     }

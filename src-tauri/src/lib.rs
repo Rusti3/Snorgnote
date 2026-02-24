@@ -4,9 +4,38 @@ mod core;
 
 use tauri::Manager;
 
+const PROTOCOL_SCHEME: &str = "snorgnote";
+
+fn ingest_browser_deeplink_arg(app: &tauri::AppHandle, args: Vec<String>) {
+    let Some(uri) = core::deeplink::extract_deeplink_from_args(args) else {
+        return;
+    };
+
+    let Some(state) = app.try_state::<core::AppState>() else {
+        log::warn!("deeplink received before app state initialization");
+        return;
+    };
+
+    match state.ingest_browser_deeplink(&uri) {
+        Ok(item) => {
+            log::info!(
+                "ingested browser deep-link into inbox: id={}, source={}",
+                item.id,
+                item.source
+            );
+        }
+        Err(error) => {
+            log::error!("failed to ingest browser deep-link `{uri}`: {error:#}");
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            ingest_browser_deeplink_arg(app, argv);
+        }))
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -18,6 +47,37 @@ pub fn run() {
 
             let state = core::AppState::bootstrap(app.handle())?;
             app.manage(state);
+
+            let startup_args: Vec<String> = std::env::args().collect();
+            ingest_browser_deeplink_arg(app.handle(), startup_args);
+
+            match std::env::current_exe() {
+                Ok(exe_path) => {
+                    match core::protocol::ensure_protocol_registered(PROTOCOL_SCHEME, &exe_path) {
+                        Ok(core::protocol::ProtocolRegistrationStatus::AlreadyRegistered) => {
+                            log::info!("deeplink protocol already registered");
+                        }
+                        Ok(core::protocol::ProtocolRegistrationStatus::Updated) => {
+                            log::info!(
+                                "deeplink protocol registered for executable {}",
+                                exe_path.display()
+                            );
+                        }
+                        Ok(core::protocol::ProtocolRegistrationStatus::Skipped) => {
+                            log::info!("deeplink protocol auto-registration skipped");
+                        }
+                        Err(error) => {
+                            log::warn!(
+                                "cannot register deeplink protocol automatically: {error:#}"
+                            );
+                        }
+                    }
+                }
+                Err(error) => {
+                    log::warn!("cannot resolve current executable path: {error:#}");
+                }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

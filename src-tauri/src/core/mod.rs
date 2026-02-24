@@ -1,7 +1,9 @@
 pub mod db;
+pub mod deeplink;
 pub mod focus;
 pub mod jobs;
 pub mod planner;
+pub mod protocol;
 pub mod review;
 pub mod skills;
 pub mod state;

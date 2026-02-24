@@ -216,6 +216,26 @@ pub fn focus_stats(
 }
 
 #[tauri::command]
+pub fn focus_history(
+    state: State<'_, AppState>,
+    limit: Option<u32>,
+    offset: Option<u32>,
+    project_id: Option<String>,
+    started_from: Option<String>,
+    started_to: Option<String>,
+) -> Result<crate::core::FocusHistoryPage, String> {
+    state
+        .focus_history(
+            limit.unwrap_or(20),
+            offset.unwrap_or(0),
+            project_id,
+            started_from,
+            started_to,
+        )
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn dashboard_get_overview(
     state: State<'_, AppState>,
 ) -> Result<crate::core::DashboardOverview, String> {

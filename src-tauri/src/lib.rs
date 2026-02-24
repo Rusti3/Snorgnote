@@ -123,6 +123,7 @@ pub fn run() {
             commands::focus_resume,
             commands::focus_active,
             commands::focus_stats,
+            commands::focus_history,
             commands::dashboard_get_overview,
             commands::projects_get_state,
             commands::telegram_set_config,

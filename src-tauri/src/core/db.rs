@@ -25,9 +25,7 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
         "../../migrations/003_trash_and_index_state.sql"
     ))?;
     ensure_focus_pause_columns(conn)?;
-    conn.execute_batch(include_str!(
-        "../../migrations/004_focus_pause_resume.sql"
-    ))?;
+    conn.execute_batch(include_str!("../../migrations/004_focus_pause_resume.sql"))?;
     Ok(())
 }
 

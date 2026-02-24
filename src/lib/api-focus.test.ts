@@ -43,5 +43,26 @@ describe('api focus mock contract', () => {
     await expect(api.focusResume()).rejects.toThrow()
     await api.focusStop()
   })
-})
 
+  it('returns paginated focus history in mock mode', async () => {
+    const api = await loadApiModule()
+    await api.focusStart('project_general', undefined)
+    await api.focusStop()
+
+    await api.focusStart('project_general', undefined)
+    await api.focusStop()
+
+    const page = await api.focusHistory({
+      limit: 1,
+      offset: 0,
+      projectId: 'project_general',
+    })
+    expect(page.limit).toBe(1)
+    expect(page.offset).toBe(0)
+    expect(page.total).toBeGreaterThanOrEqual(2)
+    expect(page.items.length).toBe(1)
+    expect(page.items[0].project_id).toBe('project_general')
+    expect(page.items[0].ended_at).toBeTruthy()
+    expect(page.items[0].duration_sec).toBeTypeOf('number')
+  })
+})

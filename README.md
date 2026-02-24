@@ -12,7 +12,7 @@
 
 ## Статус
 
-Текущая версия: `v0.1.21`.
+Текущая версия: `v0.1.22`.
 
 Реализовано:
 
@@ -198,4 +198,16 @@ npm run dev
 - Добавлены тесты:
 - Rust: стабильность dedup-key, нормализация URL, дедуп/не-дедуп сценарии ingestion;
 - Frontend: подписка на событие inbox update и корректный callback.
+
+### v0.1.22
+
+- Добавлена история фокус-сессий с пагинацией:
+- backend-команда `focus_history` (Rust + Tauri command) с фильтрами и `total/limit/offset`;
+- mock-реализация в `api.focusHistory(...)`;
+- отдельный блок `Focus history` во вкладке Focus с листингом завершенных сессий и кнопками `Prev/Next`.
+- Добавлены системные уведомления и короткий встроенный звук при автоматическом завершении фазы Pomodoro.
+- Добавлены типы API для истории фокуса (`FocusHistoryItem`, `FocusHistoryPage`) в Rust и TypeScript.
+- Добавлены тесты:
+- Frontend: `notifications.test.ts`, проверка `api.focusHistory` в `api-focus.test.ts`;
+- Backend: `focus_history_returns_completed_sessions_only`, `focus_history_supports_project_filter_and_pagination`.
 

@@ -10,8 +10,10 @@ import {
   resetRuntime,
   skipCurrentPhase,
   type PomodoroConfig,
+  type PomodoroPhase,
   type PomodoroRuntime,
 } from './pomodoro-engine'
+import { notifyPhaseCompleted, playPhaseCompleteBeep } from './notifications'
 import {
   buildPausedRuntimeFromBackend,
   createStorageEnvelope,
@@ -21,6 +23,16 @@ import {
 
 const CONFIG_STORAGE_KEY = 'snorgnote.pomodoro.config'
 const RUNTIME_STORAGE_KEY = 'snorgnote.pomodoro.runtime'
+
+function phaseLabelForNotification(phase: PomodoroPhase): string {
+  if (phase === 'focus') {
+    return 'Focus'
+  }
+  if (phase === 'short_break') {
+    return 'Short break'
+  }
+  return 'Long break'
+}
 
 function readStoredConfig(): PomodoroConfig {
   if (typeof window === 'undefined') {
@@ -190,6 +202,9 @@ export function usePomodoro(projectId: string): PomodoroController {
     }
     void (async () => {
       const snapshot = runtimeRef.current
+      const completedPhaseLabel = phaseLabelForNotification(snapshot.phase)
+      const nextRuntime = completeCurrentPhase(snapshot, configRef.current)
+      const nextPhaseLabel = phaseLabelForNotification(nextRuntime.phase)
       setError(null)
       try {
         if (snapshot.phase === 'focus' && activeSessionRef.current) {
@@ -201,7 +216,9 @@ export function usePomodoro(projectId: string): PomodoroController {
         setError(err instanceof Error ? err.message : 'Ошибка завершения focus-сессии')
       }
 
-      setRuntime((current) => completeCurrentPhase(current, configRef.current))
+      setRuntime(nextRuntime)
+      playPhaseCompleteBeep()
+      void notifyPhaseCompleted(completedPhaseLabel, nextPhaseLabel)
       setNotice('Фаза завершена. Нажмите Start для следующей фазы.')
     })()
   }, [completionToken])
@@ -340,4 +357,3 @@ export function usePomodoro(projectId: string): PomodoroController {
     reset,
   }
 }
-

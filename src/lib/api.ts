@@ -4,6 +4,8 @@ import type {
   DailyPlan,
   DashboardOverview,
   FocusActiveState,
+  FocusHistoryItem,
+  FocusHistoryPage,
   FocusSessionView,
   FocusStats,
   InboxItemView,
@@ -44,6 +46,20 @@ function computeMockElapsedSec(session: FocusSessionView, referenceAt: string): 
     ? durationBetweenSeconds(session.paused_at, referenceAt)
     : 0
   return Math.max(0, base - pausedTotal - currentPause)
+}
+
+function normalizePageLimit(limit: number | undefined): number {
+  if (typeof limit !== 'number' || !Number.isFinite(limit)) {
+    return 20
+  }
+  return Math.max(1, Math.min(200, Math.floor(limit)))
+}
+
+function normalizePageOffset(offset: number | undefined): number {
+  if (typeof offset !== 'number' || !Number.isFinite(offset)) {
+    return 0
+  }
+  return Math.max(0, Math.floor(offset))
 }
 
 const mockState = {
@@ -598,6 +614,61 @@ export const api = {
       sessions: mockState.focusHistory.length,
       total_minutes: totalMinutes,
       by_project: [],
+    }
+  },
+
+  async focusHistory(input?: {
+    limit?: number
+    offset?: number
+    projectId?: string
+    startedFrom?: string
+    startedTo?: string
+  }): Promise<FocusHistoryPage> {
+    const limit = normalizePageLimit(input?.limit)
+    const offset = normalizePageOffset(input?.offset)
+    const projectId = input?.projectId?.trim() || undefined
+    const startedFrom = input?.startedFrom
+    const startedTo = input?.startedTo
+
+    if (hasTauriRuntime()) {
+      return tauriInvoke('focus_history', {
+        limit,
+        offset,
+        projectId,
+        startedFrom,
+        startedTo,
+      })
+    }
+
+    const sorted = [...mockState.focusHistory]
+      .filter((session) => Boolean(session.ended_at))
+      .filter((session) => !projectId || session.project_id === projectId)
+      .filter((session) => !startedFrom || session.started_at >= startedFrom)
+      .filter((session) => !startedTo || session.started_at <= startedTo)
+      .sort((left, right) => {
+        const rightEnded = right.ended_at ?? right.started_at
+        const leftEnded = left.ended_at ?? left.started_at
+        return rightEnded.localeCompare(leftEnded)
+      })
+
+    const total = sorted.length
+    const items: FocusHistoryItem[] = sorted
+      .slice(offset, offset + limit)
+      .map((session) => ({
+        id: session.id,
+        project_id: session.project_id,
+        task_id: session.task_id,
+        started_at: session.started_at,
+        ended_at: session.ended_at,
+        paused_total_sec: session.paused_total_sec ?? 0,
+        duration_sec: session.duration_sec,
+      }))
+
+    return {
+      items,
+      total,
+      limit,
+      offset,
     }
   },
 

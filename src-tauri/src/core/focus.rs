@@ -6,7 +6,10 @@ use uuid::Uuid;
 
 use crate::core::{
     state::AppState,
-    types::{DashboardOverview, FocusSessionView, FocusStats, ProjectFocusStat, ProjectState},
+    types::{
+        DashboardOverview, FocusHistoryItem, FocusHistoryPage, FocusSessionView, FocusStats,
+        ProjectFocusStat, ProjectState,
+    },
     utils::{duration_between_secs, now_rfc3339},
 };
 
@@ -159,7 +162,8 @@ impl AppState {
 
     pub fn focus_pause(&self) -> Result<FocusSessionView> {
         let conn = self.conn()?;
-        let session = fetch_active_session(&conn)?.ok_or_else(|| anyhow!("no active focus session"))?;
+        let session =
+            fetch_active_session(&conn)?.ok_or_else(|| anyhow!("no active focus session"))?;
         if session.paused_at.is_some() {
             bail!("active session is already paused");
         }
@@ -192,7 +196,8 @@ impl AppState {
 
     pub fn focus_resume(&self) -> Result<FocusSessionView> {
         let conn = self.conn()?;
-        let session = fetch_active_session(&conn)?.ok_or_else(|| anyhow!("no active focus session"))?;
+        let session =
+            fetch_active_session(&conn)?.ok_or_else(|| anyhow!("no active focus session"))?;
         let paused_at = session
             .paused_at
             .clone()
@@ -215,7 +220,8 @@ impl AppState {
             &json!({ "paused_delta_sec": paused_delta }),
         )?;
 
-        let elapsed_sec = elapsed_without_pauses(&session.started_at, &now, paused_total_sec, None)?;
+        let elapsed_sec =
+            elapsed_without_pauses(&session.started_at, &now, paused_total_sec, None)?;
         Ok(build_focus_view(
             &session,
             None,
@@ -229,7 +235,8 @@ impl AppState {
 
     pub fn focus_stop(&self) -> Result<FocusSessionView> {
         let conn = self.conn()?;
-        let session = fetch_active_session(&conn)?.ok_or_else(|| anyhow!("no active focus session"))?;
+        let session =
+            fetch_active_session(&conn)?.ok_or_else(|| anyhow!("no active focus session"))?;
 
         let ended_at = now_rfc3339();
         let extra_paused = match session.paused_at.as_deref() {
@@ -297,6 +304,79 @@ impl AppState {
             total_minutes,
             sessions,
             by_project,
+        })
+    }
+
+    pub fn focus_history(
+        &self,
+        limit: u32,
+        offset: u32,
+        project_id: Option<String>,
+        started_from: Option<String>,
+        started_to: Option<String>,
+    ) -> Result<FocusHistoryPage> {
+        let conn = self.conn()?;
+        let project_filter = project_id.as_deref();
+        let from_filter = started_from.as_deref();
+        let to_filter = started_to.as_deref();
+
+        let total: i64 = conn.query_row(
+            "SELECT COUNT(*)
+             FROM focus_sessions
+             WHERE ended_at IS NOT NULL
+               AND (?1 IS NULL OR project_id = ?1)
+               AND (?2 IS NULL OR started_at >= ?2)
+               AND (?3 IS NULL OR started_at <= ?3)",
+            params![project_filter, from_filter, to_filter],
+            |row| row.get(0),
+        )?;
+
+        let mut stmt = conn.prepare(
+            "SELECT
+                id,
+                project_id,
+                task_id,
+                started_at,
+                ended_at,
+                COALESCE(paused_total_sec, 0),
+                duration_sec
+             FROM focus_sessions
+             WHERE ended_at IS NOT NULL
+               AND (?1 IS NULL OR project_id = ?1)
+               AND (?2 IS NULL OR started_at >= ?2)
+               AND (?3 IS NULL OR started_at <= ?3)
+             ORDER BY ended_at DESC, started_at DESC
+             LIMIT ?4 OFFSET ?5",
+        )?;
+
+        let items = stmt
+            .query_map(
+                params![
+                    project_filter,
+                    from_filter,
+                    to_filter,
+                    i64::from(limit),
+                    i64::from(offset)
+                ],
+                |row| {
+                    Ok(FocusHistoryItem {
+                        id: row.get(0)?,
+                        project_id: row.get(1)?,
+                        task_id: row.get(2)?,
+                        started_at: row.get(3)?,
+                        ended_at: row.get(4)?,
+                        paused_total_sec: row.get(5)?,
+                        duration_sec: row.get(6)?,
+                    })
+                },
+            )?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+
+        Ok(FocusHistoryPage {
+            items,
+            total,
+            limit,
+            offset,
         })
     }
 
@@ -465,6 +545,61 @@ mod tests {
         let active_paused = state.focus_active()?.expect("paused session expected");
         assert_eq!(active_paused.status.as_deref(), Some("paused"));
         assert!(active_paused.paused_at.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn focus_history_returns_completed_sessions_only() -> Result<()> {
+        let temp = tempdir()?;
+        let state = AppState::for_test(temp.path())?;
+
+        let first = state.focus_start(Some("project_general".to_string()), None)?;
+        state.focus_stop()?;
+
+        let second = state.focus_start(Some("project_life".to_string()), None)?;
+        state.focus_stop()?;
+
+        let _active = state.focus_start(Some("project_general".to_string()), None)?;
+
+        let page = state.focus_history(20, 0, None, None, None)?;
+        assert_eq!(page.items.len(), 2);
+        assert_eq!(page.total, 2);
+        assert_eq!(page.items[0].id, second.id);
+        assert_eq!(page.items[1].id, first.id);
+        assert!(page.items.iter().all(|item| item.ended_at.is_some()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn focus_history_supports_project_filter_and_pagination() -> Result<()> {
+        let temp = tempdir()?;
+        let state = AppState::for_test(temp.path())?;
+
+        state.focus_start(Some("project_general".to_string()), None)?;
+        state.focus_stop()?;
+
+        state.focus_start(Some("project_general".to_string()), None)?;
+        state.focus_stop()?;
+
+        state.focus_start(Some("project_life".to_string()), None)?;
+        state.focus_stop()?;
+
+        let filtered =
+            state.focus_history(50, 0, Some("project_general".to_string()), None, None)?;
+        assert_eq!(filtered.total, 2);
+        assert_eq!(filtered.items.len(), 2);
+        assert!(filtered
+            .items
+            .iter()
+            .all(|item| item.project_id.as_deref() == Some("project_general")));
+
+        let paged = state.focus_history(1, 1, Some("project_general".to_string()), None, None)?;
+        assert_eq!(paged.items.len(), 1);
+        assert_eq!(paged.total, 2);
+        assert_eq!(paged.limit, 1);
+        assert_eq!(paged.offset, 1);
+
         Ok(())
     }
 }

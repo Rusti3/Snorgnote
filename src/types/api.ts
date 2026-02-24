@@ -110,6 +110,23 @@ export interface FocusStats {
   by_project: ProjectFocusStat[]
 }
 
+export interface FocusHistoryItem {
+  id: string
+  project_id?: string
+  task_id?: string
+  started_at: string
+  ended_at?: string
+  paused_total_sec: number
+  duration_sec?: number
+}
+
+export interface FocusHistoryPage {
+  items: FocusHistoryItem[]
+  total: number
+  limit: number
+  offset: number
+}
+
 export interface DashboardOverview {
   notes: number
   inbox_new: number

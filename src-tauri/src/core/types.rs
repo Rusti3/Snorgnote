@@ -123,6 +123,25 @@ pub struct FocusStats {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct FocusHistoryItem {
+    pub id: String,
+    pub project_id: Option<String>,
+    pub task_id: Option<String>,
+    pub started_at: String,
+    pub ended_at: Option<String>,
+    pub paused_total_sec: i64,
+    pub duration_sec: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FocusHistoryPage {
+    pub items: Vec<FocusHistoryItem>,
+    pub total: i64,
+    pub limit: u32,
+    pub offset: u32,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct DashboardOverview {
     pub notes: i64,
     pub inbox_new: i64,

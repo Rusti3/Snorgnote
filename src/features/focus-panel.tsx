@@ -5,10 +5,14 @@ import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { api } from '../lib/api'
 import { useLocale } from '../lib/locale'
-import type { FocusStats } from '../types/api'
+import type { FocusHistoryPage, FocusStats } from '../types/api'
 import { phaseDurationSec, type PomodoroConfig, type PomodoroPhase } from './focus/pomodoro-engine'
 import { usePomodoro } from './focus/use-pomodoro'
 import { WatchClock } from './focus/watch-clock'
+
+const HISTORY_PAGE_LIMIT = 8
+
+type ConfigField = keyof PomodoroConfig
 
 function formatRemaining(seconds: number): string {
   const clamped = Math.max(0, Math.floor(seconds))
@@ -17,10 +21,7 @@ function formatRemaining(seconds: number): string {
   return `${minutes.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`
 }
 
-function phaseLabel(
-  t: (ru: string, en: string) => string,
-  phase: PomodoroPhase,
-): string {
+function phaseLabel(t: (ru: string, en: string) => string, phase: PomodoroPhase): string {
   if (phase === 'focus') {
     return t('Фокус', 'Focus')
   }
@@ -42,13 +43,34 @@ function coerceNumber(raw: string): number | null {
   return value
 }
 
-type ConfigField = keyof PomodoroConfig
+function formatDateTime(value?: string): string {
+  if (!value) {
+    return '-'
+  }
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return value
+  }
+  return parsed.toLocaleString()
+}
+
+function formatDurationMinutes(durationSec?: number): string {
+  if (typeof durationSec !== 'number' || !Number.isFinite(durationSec)) {
+    return '-'
+  }
+  const minutes = Math.max(0, Math.round(durationSec / 60))
+  return `${minutes} min`
+}
 
 export function FocusPanel() {
   const { t } = useLocale()
   const [projectId, setProjectId] = useState('project_general')
   const [stats, setStats] = useState<FocusStats | null>(null)
   const [statsError, setStatsError] = useState<string | null>(null)
+  const [history, setHistory] = useState<FocusHistoryPage | null>(null)
+  const [historyOffset, setHistoryOffset] = useState(0)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyError, setHistoryError] = useState<string | null>(null)
   const [pendingConfig, setPendingConfig] = useState<Record<ConfigField, string>>({
     focus_min: '',
     short_break_min: '',
@@ -86,13 +108,36 @@ export function FocusPanel() {
     }
   }
 
+  async function refreshHistory(nextOffset = historyOffset) {
+    setHistoryError(null)
+    setHistoryLoading(true)
+    try {
+      const page = await api.focusHistory({
+        limit: HISTORY_PAGE_LIMIT,
+        offset: nextOffset,
+      })
+      setHistory(page)
+      setHistoryOffset(page.offset)
+    } catch (err) {
+      setHistoryError(
+        err instanceof Error
+          ? err.message
+          : t('Не удалось загрузить историю фокуса', 'Unable to load focus history'),
+      )
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
   useEffect(() => {
     void refreshStats()
+    void refreshHistory(0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
     void refreshStats()
+    void refreshHistory(0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pomodoro.statsTick])
 
@@ -109,6 +154,10 @@ export function FocusPanel() {
   const canStart = !pomodoro.runtime.is_running
   const canStop = pomodoro.runtime.is_running || Boolean(pomodoro.activeSession)
   const phaseText = phaseLabel(t, pomodoro.runtime.phase)
+  const hasPrevHistoryPage = historyOffset > 0
+  const hasNextHistoryPage = Boolean(
+    history && historyOffset + history.items.length < history.total,
+  )
 
   return (
     <div className="space-y-4">
@@ -135,9 +184,7 @@ export function FocusPanel() {
           <div className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2">
               <label className="space-y-1 text-sm">
-                <span className="text-[var(--muted-foreground)]">
-                  {t('Проект', 'Project')}
-                </span>
+                <span className="text-[var(--muted-foreground)]">{t('Проект', 'Project')}</span>
                 <input
                   className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-sm"
                   value={projectId}
@@ -149,11 +196,7 @@ export function FocusPanel() {
                 <span className="text-[var(--muted-foreground)]">{t('Состояние', 'Status')}</span>
                 <div className="flex flex-wrap gap-2">
                   <Badge>{phaseText}</Badge>
-                  <Badge>
-                    {pomodoro.runtime.is_running
-                      ? t('Идёт', 'Running')
-                      : t('Ожидание', 'Idle')}
-                  </Badge>
+                  <Badge>{pomodoro.runtime.is_running ? t('Идет', 'Running') : t('Ожидание', 'Idle')}</Badge>
                   <Badge>{t('Цикл', 'Cycle')}: {pomodoro.runtime.cycle_index}</Badge>
                 </div>
               </div>
@@ -231,7 +274,7 @@ export function FocusPanel() {
               <div className="rounded-md border border-[var(--border)] bg-[var(--muted)]/40 p-3 text-sm">
                 <p className="font-medium">{t('Активная focus-сессия', 'Active focus session')}</p>
                 <p className="text-[var(--muted-foreground)]">
-                  {t('Старт', 'Started')} {new Date(pomodoro.activeSession.started_at).toLocaleTimeString()}
+                  {t('Старт', 'Started')}: {new Date(pomodoro.activeSession.started_at).toLocaleTimeString()}
                 </p>
                 {pomodoro.activeSession.status ? (
                   <p className="text-[var(--muted-foreground)]">
@@ -282,7 +325,75 @@ export function FocusPanel() {
           <p className="mt-2 text-sm text-[var(--danger)]">{statsError}</p>
         ) : null}
       </Card>
+
+      <Card>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-sm font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
+            {t('История фокуса', 'Focus history')}
+          </h4>
+          <Button
+            variant="outline"
+            onClick={() => void refreshHistory(historyOffset)}
+            disabled={historyLoading}
+          >
+            {t('Обновить', 'Refresh')}
+          </Button>
+        </div>
+
+        {history && history.items.length > 0 ? (
+          <div className="space-y-2">
+            {history.items.map((item) => (
+              <div
+                key={item.id}
+                className="rounded-md border border-[var(--border)] bg-[var(--muted)]/40 p-3 text-sm"
+              >
+                <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium">{item.project_id ?? t('Без проекта', 'Unassigned')}</span>
+                  <Badge>{formatDurationMinutes(item.duration_sec)}</Badge>
+                </div>
+                <p className="text-[var(--muted-foreground)]">
+                  {t('Старт', 'Started')}: {formatDateTime(item.started_at)}
+                </p>
+                <p className="text-[var(--muted-foreground)]">
+                  {t('Финиш', 'Ended')}: {formatDateTime(item.ended_at)}
+                </p>
+              </div>
+            ))}
+
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-[var(--muted-foreground)]">
+                {t('Всего', 'Total')}: {history.total}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  disabled={!hasPrevHistoryPage || historyLoading}
+                  onClick={() => void refreshHistory(Math.max(0, historyOffset - HISTORY_PAGE_LIMIT))}
+                >
+                  {t('Назад', 'Prev')}
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={!hasNextHistoryPage || historyLoading}
+                  onClick={() => void refreshHistory(historyOffset + HISTORY_PAGE_LIMIT)}
+                >
+                  {t('Далее', 'Next')}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-[var(--muted-foreground)]">
+            {historyLoading
+              ? t('Загрузка...', 'Loading...')
+              : t('Пока нет завершенных focus-сессий.', 'No completed focus sessions yet.')}
+          </p>
+        )}
+
+        {historyError ? (
+          <p className="mt-2 text-sm text-[var(--danger)]">{historyError}</p>
+        ) : null}
+      </Card>
     </div>
   )
 }
-

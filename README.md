@@ -12,7 +12,7 @@
 
 ## Статус
 
-Текущая версия: `v0.1.27`.
+Текущая версия: `v0.1.28`.
 
 Реализовано:
 
@@ -286,4 +286,22 @@ npm run dev
 - отметка/снятие выполнения за день;
 - расчет `streak` по завершенным обязательным дням.
 - Добавлены backend-команды и типы API для привычек (`habits_list/create/update/archive/delete/mark_done/unmark_done/today`), новая миграция `007_habits.sql` и тесты на frontend/backend.
+
+### v0.1.28
+
+- Добавлено отдельное окно повторения карточек в стиле Anki (`Flashcards Review`), открываемое из вкладки `Flashcards`.
+- Повторный запуск окна работает в режиме single-instance: если окно уже открыто, приложение просто переводит фокус на него.
+- В новом окне реализован полный review-цикл:
+- фронт карточки;
+- показ обратной стороны;
+- оценки `Again / Hard / Good / Easy`;
+- автоматический переход к следующей карточке.
+- Когда карточки к повторению заканчиваются, показывается экран `All done for today` с кнопками повторной проверки и закрытия окна.
+- Добавлен bootstrap-режим UI по query-параметру `?view=flashcards-review` для рендера отдельного review-root.
+- Добавлены новые frontend-тесты:
+- `app-view.test.ts`;
+- `review-window.test.ts`;
+- `flashcards-panel.test.tsx`;
+- `flashcards-review-window.test.tsx`.
+- Расширены Tauri permissions для создания и фокусировки дополнительного окна (`core:webview:allow-create-webview-window`, `core:window:allow-create`, `core:window:allow-get-all-windows`, `core:window:allow-show`, `core:window:allow-set-focus`) и добавлен label окна `flashcards-review` в capabilities.
 

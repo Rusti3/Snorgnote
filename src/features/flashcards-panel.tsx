@@ -5,6 +5,7 @@ import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { api } from '../lib/api'
 import { useLocale } from '../lib/locale'
+import { openFlashcardsReviewWindow } from '../lib/review-window'
 import type {
   FlashcardGrade,
   FlashcardPage,
@@ -139,13 +140,39 @@ export function FlashcardsPanel() {
     }
   }
 
+  async function openReviewWindow() {
+    setError(null)
+    try {
+      const result = await openFlashcardsReviewWindow()
+      if (result === 'unsupported') {
+        setStatus(
+          t(
+            'Separate review window is available only in Tauri desktop.',
+            'Separate review window is available only in Tauri desktop.',
+          ),
+        )
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : t('Failed to open review window', 'Failed to open review window'),
+      )
+    }
+  }
+
   return (
     <div className="grid gap-4 xl:grid-cols-[360px_1fr]">
       <div className="space-y-4">
         <Card className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-lg font-semibold">{t('Повторение', 'Review')}</h3>
-            <Badge>{t('К повтору', 'Due')}: {dueCount}</Badge>
+            <div className="flex items-center gap-2">
+              <Badge>{t('К повтору', 'Due')}: {dueCount}</Badge>
+              <Button variant="outline" onClick={() => void openReviewWindow()}>
+                {t('Open review window', 'Open review window')}
+              </Button>
+            </div>
           </div>
 
           {reviewCard ? (

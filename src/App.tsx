@@ -94,8 +94,8 @@ export default function App() {
             <h2 className="font-display text-2xl font-semibold">{title}</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
               {t(
-                'v0.1.27: добавлена вкладка привычек с частотой, отметками выполнения и streak.',
-                'v0.1.27: habits tab added with frequency, completion tracking and streaks.',
+                'v0.1.28: добавлено отдельное окно повторения карточек в стиле Anki.',
+                'v0.1.28: dedicated Anki-style flashcards review window added.',
               )}
             </p>
           </Card>

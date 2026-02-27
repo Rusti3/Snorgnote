@@ -11,6 +11,7 @@ pub mod review;
 pub mod skills;
 pub mod state;
 pub mod telegram;
+pub mod theme;
 pub mod types;
 pub mod utils;
 

@@ -384,6 +384,20 @@ function extractInvokeErrorMessage(error: unknown): string {
 export const api = {
   isTauri: hasTauriRuntime,
 
+  async themeSaveBackgroundImage(fileName: string, bytes: number[]): Promise<string> {
+    if (!hasTauriRuntime()) {
+      throw new Error('Theme background storage is available only in Tauri runtime')
+    }
+    return tauriInvoke('theme_save_background_image', { fileName, bytes })
+  },
+
+  async themeClearBackgroundImage(): Promise<void> {
+    if (!hasTauriRuntime()) {
+      return
+    }
+    await tauriInvoke('theme_clear_background_image')
+  },
+
   async vaultListNotes(): Promise<NoteSummary[]> {
     if (hasTauriRuntime()) {
       return tauriInvoke('vault_list_notes')

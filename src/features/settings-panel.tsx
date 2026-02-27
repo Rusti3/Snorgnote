@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
@@ -26,10 +26,15 @@ export function SettingsPanel() {
     lightSecondary,
     darkPrimary,
     darkSecondary,
+    customAccent,
+    customBackgroundUrl,
     setLightPrimary,
     setLightSecondary,
     setDarkPrimary,
     setDarkSecondary,
+    setCustomAccent,
+    setCustomBackgroundFromFile,
+    clearCustomBackground,
   } = useTheme()
 
   const [botToken, setBotToken] = useState('')
@@ -39,13 +44,74 @@ export function SettingsPanel() {
   const [pollReport, setPollReport] = useState<TelegramPollReport | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const paletteEditable = themeMode === 'light' || themeMode === 'dark'
-  const palettePrimary = themeMode === 'dark' ? darkPrimary : lightPrimary
-  const paletteSecondary = themeMode === 'dark' ? darkSecondary : lightSecondary
-  const primaryPalette =
+  const [themeInfo, setThemeInfo] = useState<string | null>(null)
+  const [themeError, setThemeError] = useState<string | null>(null)
+  const [themeBackgroundFileName, setThemeBackgroundFileName] = useState<string | null>(null)
+  const themeFileInputRef = useRef<HTMLInputElement | null>(null)
+  const paletteEditable = themeMode === 'light' || themeMode === 'dark' || themeMode === 'custom'
+  const palettePrimary =
+    themeMode === 'dark' || themeMode === 'custom' ? darkPrimary : lightPrimary
+  const paletteSecondary =
     themeMode === 'dark'
+      ? darkSecondary
+      : themeMode === 'custom'
+        ? customAccent
+        : lightSecondary
+  const primaryPalette =
+    themeMode === 'dark' || themeMode === 'custom'
       ? DARK_PRIMARY_COLOR_PALETTE
       : LIGHT_PRIMARY_COLOR_PALETTE
+
+  async function onThemeBackgroundSelected(file: File | undefined) {
+    if (!file) {
+      return
+    }
+    setThemeInfo(null)
+    setThemeError(null)
+    try {
+      await setCustomBackgroundFromFile(file)
+      setThemeBackgroundFileName(file.name)
+      setThemeInfo(
+        t(
+          'Р¤РѕРЅРѕРІРѕРµ РёР·РѕР±СЂР°Р¶РµРЅРёРµ С‚РµРјС‹ РѕР±РЅРѕРІР»РµРЅРѕ.',
+          'Theme background image updated.',
+        ),
+      )
+    } catch (err) {
+      setThemeError(
+        err instanceof Error
+          ? err.message
+          : t(
+            'РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РёР·РѕР±СЂР°Р¶РµРЅРёРµ С‚РµРјС‹.',
+            'Failed to upload theme image.',
+          ),
+      )
+    }
+  }
+
+  async function onThemeBackgroundClear() {
+    setThemeInfo(null)
+    setThemeError(null)
+    try {
+      await clearCustomBackground()
+      setThemeBackgroundFileName(null)
+      if (themeFileInputRef.current) {
+        themeFileInputRef.current.value = ''
+      }
+      setThemeInfo(
+        t('Р¤РѕРЅРѕРІРѕРµ РёР·РѕР±СЂР°Р¶РµРЅРёРµ СѓРґР°Р»РµРЅРѕ.', 'Theme background image removed.'),
+      )
+    } catch (err) {
+      setThemeError(
+        err instanceof Error
+          ? err.message
+          : t(
+            'РќРµ СѓРґР°Р»РѕСЃСЊ СѓРґР°Р»РёС‚СЊ РёР·РѕР±СЂР°Р¶РµРЅРёРµ С‚РµРјС‹.',
+            'Failed to remove theme image.',
+          ),
+      )
+    }
+  }
 
   const loadStatus = useCallback(async () => {
     setError(null)
@@ -59,7 +125,7 @@ export function SettingsPanel() {
       setError(
         err instanceof Error
           ? err.message
-          : t('Не удалось загрузить статус Telegram', 'Failed to load Telegram status'),
+          : t('РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ СЃС‚Р°С‚СѓСЃ Telegram', 'Failed to load Telegram status'),
       )
     }
   }, [t, username])
@@ -77,7 +143,7 @@ export function SettingsPanel() {
       setStatus(result)
       setInfo(
         t(
-          'Конфиг Telegram сохранен. Теперь сгенерируйте одноразовый код и отправьте его боту в личные сообщения.',
+          'РљРѕРЅС„РёРі Telegram СЃРѕС…СЂР°РЅРµРЅ. РўРµРїРµСЂСЊ СЃРіРµРЅРµСЂРёСЂСѓР№С‚Рµ РѕРґРЅРѕСЂР°Р·РѕРІС‹Р№ РєРѕРґ Рё РѕС‚РїСЂР°РІСЊС‚Рµ РµРіРѕ Р±РѕС‚Сѓ РІ Р»РёС‡РЅС‹Рµ СЃРѕРѕР±С‰РµРЅРёСЏ.',
           'Telegram config saved. Generate a one-time code and send it to your bot in private chat.',
         ),
       )
@@ -85,7 +151,7 @@ export function SettingsPanel() {
       setError(
         err instanceof Error
           ? err.message
-          : t('Не удалось сохранить конфиг Telegram', 'Failed to save Telegram config'),
+          : t('РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕС…СЂР°РЅРёС‚СЊ РєРѕРЅС„РёРі Telegram', 'Failed to save Telegram config'),
       )
     }
   }
@@ -98,7 +164,7 @@ export function SettingsPanel() {
       setVerification(result)
       setInfo(
         t(
-          'Отправьте этот код боту в личные сообщения Telegram, затем нажмите «Проверить сейчас».',
+          'РћС‚РїСЂР°РІСЊС‚Рµ СЌС‚РѕС‚ РєРѕРґ Р±РѕС‚Сѓ РІ Р»РёС‡РЅС‹Рµ СЃРѕРѕР±С‰РµРЅРёСЏ Telegram, Р·Р°С‚РµРј РЅР°Р¶РјРёС‚Рµ В«РџСЂРѕРІРµСЂРёС‚СЊ СЃРµР№С‡Р°СЃВ».',
           'Send this code to your Telegram bot in private chat, then click "Poll now".',
         ),
       )
@@ -106,7 +172,7 @@ export function SettingsPanel() {
       setError(
         err instanceof Error
           ? err.message
-          : t('Не удалось сгенерировать код верификации', 'Failed to generate verification code'),
+          : t('РќРµ СѓРґР°Р»РѕСЃСЊ СЃРіРµРЅРµСЂРёСЂРѕРІР°С‚СЊ РєРѕРґ РІРµСЂРёС„РёРєР°С†РёРё', 'Failed to generate verification code'),
       )
     }
   }
@@ -121,7 +187,7 @@ export function SettingsPanel() {
       if (report.verified_now) {
         setInfo(
           t(
-            'Верификация подтверждена. Теперь можно запускать прием сообщений Telegram.',
+            'Р’РµСЂРёС„РёРєР°С†РёСЏ РїРѕРґС‚РІРµСЂР¶РґРµРЅР°. РўРµРїРµСЂСЊ РјРѕР¶РЅРѕ Р·Р°РїСѓСЃРєР°С‚СЊ РїСЂРёРµРј СЃРѕРѕР±С‰РµРЅРёР№ Telegram.',
             'Verification confirmed. You can start Telegram listener now.',
           ),
         )
@@ -130,7 +196,7 @@ export function SettingsPanel() {
       setError(
         err instanceof Error
           ? err.message
-          : t('Не удалось опросить обновления Telegram', 'Failed to poll Telegram updates'),
+          : t('РќРµ СѓРґР°Р»РѕСЃСЊ РѕРїСЂРѕСЃРёС‚СЊ РѕР±РЅРѕРІР»РµРЅРёСЏ Telegram', 'Failed to poll Telegram updates'),
       )
     }
   }
@@ -141,12 +207,12 @@ export function SettingsPanel() {
     try {
       const result = await api.telegramListenerStart()
       setStatus(result)
-      setInfo(t('Прием сообщений Telegram запущен.', 'Telegram listener started.'))
+      setInfo(t('РџСЂРёРµРј СЃРѕРѕР±С‰РµРЅРёР№ Telegram Р·Р°РїСѓС‰РµРЅ.', 'Telegram listener started.'))
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : t('Не удалось запустить прием сообщений Telegram', 'Failed to start Telegram listener'),
+          : t('РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РїСѓСЃС‚РёС‚СЊ РїСЂРёРµРј СЃРѕРѕР±С‰РµРЅРёР№ Telegram', 'Failed to start Telegram listener'),
       )
     }
   }
@@ -157,12 +223,12 @@ export function SettingsPanel() {
     try {
       const result = await api.telegramListenerStop()
       setStatus(result)
-      setInfo(t('Прием сообщений Telegram остановлен.', 'Telegram listener stopped.'))
+      setInfo(t('РџСЂРёРµРј СЃРѕРѕР±С‰РµРЅРёР№ Telegram РѕСЃС‚Р°РЅРѕРІР»РµРЅ.', 'Telegram listener stopped.'))
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : t('Не удалось остановить прием сообщений Telegram', 'Failed to stop Telegram listener'),
+          : t('РќРµ СѓРґР°Р»РѕСЃСЊ РѕСЃС‚Р°РЅРѕРІРёС‚СЊ РїСЂРёРµРј СЃРѕРѕР±С‰РµРЅРёР№ Telegram', 'Failed to stop Telegram listener'),
       )
     }
   }
@@ -173,7 +239,7 @@ export function SettingsPanel() {
         <h3 className="mb-2 text-lg font-semibold">{t('Тема оформления', 'Theme')}</h3>
         <p className="text-sm text-[var(--muted-foreground)]">
           {t(
-            'Режим применяется мгновенно и сохраняется локально.',
+            'Режим темы применяется мгновенно и сохраняется локально.',
             'Theme mode applies instantly and is stored locally.',
           )}
         </p>
@@ -197,6 +263,12 @@ export function SettingsPanel() {
           >
             {t('Тёмная', 'Dark')}
           </Button>
+          <Button
+            variant={themeMode === 'custom' ? 'default' : 'outline'}
+            onClick={() => setThemeMode('custom')}
+          >
+            {t('Кастомная', 'Custom')}
+          </Button>
         </div>
 
         <div className="mt-4 space-y-3">
@@ -218,7 +290,7 @@ export function SettingsPanel() {
                     } ${!paletteEditable ? 'cursor-not-allowed opacity-50 hover:scale-100' : ''}`}
                     disabled={!paletteEditable}
                     onClick={() =>
-                      themeMode === 'dark'
+                      themeMode === 'dark' || themeMode === 'custom'
                         ? setDarkPrimary(color)
                         : setLightPrimary(color)
                     }
@@ -250,7 +322,9 @@ export function SettingsPanel() {
                     onClick={() =>
                       themeMode === 'dark'
                         ? setDarkSecondary(color)
-                        : setLightSecondary(color)
+                        : themeMode === 'custom'
+                          ? setCustomAccent(color)
+                          : setLightSecondary(color)
                     }
                     style={{ backgroundColor: color }}
                     type="button"
@@ -263,25 +337,87 @@ export function SettingsPanel() {
           {!paletteEditable ? (
             <p className="text-xs text-[var(--muted-foreground)]">
               {t(
-                'В режиме «Системная» настройте цвета отдельно во вкладках «Светлая» и «Тёмная».',
+                'В режиме «Системная» настраивайте цвета отдельно в «Светлая» и «Тёмная».',
                 'In System mode, customize colors separately in Light and Dark modes.',
               )}
             </p>
+          ) : null}
+
+          {themeMode === 'custom' ? (
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--muted)]/40 p-3">
+              <p className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
+                {t('Фон кастомной темы', 'Custom theme background')}
+              </p>
+              <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                {t(
+                  'Поддерживаются PNG, JPG, JPEG и WEBP до 10MB.',
+                  'Supported formats: PNG, JPG, JPEG, WEBP up to 10MB.',
+                )}
+              </p>
+              <input
+                ref={themeFileInputRef}
+                accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+                aria-label="Theme background image"
+                className="sr-only"
+                onChange={(event) => {
+                  void onThemeBackgroundSelected(event.target.files?.[0])
+                }}
+                type="file"
+              />
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => themeFileInputRef.current?.click()}
+                >
+                  {t('Загрузить изображение', 'Upload image')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!customBackgroundUrl}
+                  onClick={() => void onThemeBackgroundClear()}
+                >
+                  {t('Удалить изображение', 'Remove image')}
+                </Button>
+              </div>
+
+              {themeBackgroundFileName ? (
+                <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                  {t('Выбрано', 'Selected')}: {themeBackgroundFileName}
+                </p>
+              ) : null}
+              {customBackgroundUrl && !themeBackgroundFileName ? (
+                <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                  {t(
+                    'Фон сохранён и будет использоваться после перезапуска.',
+                    'Background is saved and will be reused after restart.',
+                  )}
+                </p>
+              ) : null}
+              {themeInfo ? (
+                <p className="mt-2 text-xs text-[var(--success)]">{themeInfo}</p>
+              ) : null}
+              {themeError ? (
+                <p className="mt-2 text-xs text-[var(--danger)]">{themeError}</p>
+              ) : null}
+            </div>
           ) : null}
         </div>
       </Card>
 
       <Card>
-        <h3 className="mb-2 text-lg font-semibold">{t('Язык интерфейса', 'Interface language')}</h3>
+        <h3 className="mb-2 text-lg font-semibold">{t('РЇР·С‹Рє РёРЅС‚РµСЂС„РµР№СЃР°', 'Interface language')}</h3>
         <p className="text-sm text-[var(--muted-foreground)]">
           {t(
-            'Смена языка применяется сразу и сохраняется локально.',
+            'РЎРјРµРЅР° СЏР·С‹РєР° РїСЂРёРјРµРЅСЏРµС‚СЃСЏ СЃСЂР°Р·Сѓ Рё СЃРѕС…СЂР°РЅСЏРµС‚СЃСЏ Р»РѕРєР°Р»СЊРЅРѕ.',
             'Language change applies instantly and is stored locally.',
           )}
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <Button variant={locale === 'ru' ? 'default' : 'outline'} onClick={() => setLocale('ru')}>
-            Русский
+            Р СѓСЃСЃРєРёР№
           </Button>
           <Button variant={locale === 'en' ? 'default' : 'outline'} onClick={() => setLocale('en')}>
             English
@@ -290,11 +426,11 @@ export function SettingsPanel() {
       </Card>
 
       <Card>
-        <h3 className="mb-3 text-lg font-semibold">{t('Настройки Telegram', 'Telegram Settings')}</h3>
+        <h3 className="mb-3 text-lg font-semibold">{t('РќР°СЃС‚СЂРѕР№РєРё Telegram', 'Telegram Settings')}</h3>
         <div className="grid gap-2 md:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs text-[var(--muted-foreground)]">
-              {t('Токен бота', 'Bot token')}
+              {t('РўРѕРєРµРЅ Р±РѕС‚Р°', 'Bot token')}
             </label>
             <input
               className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-sm"
@@ -305,28 +441,28 @@ export function SettingsPanel() {
           </div>
           <div>
             <label className="mb-1 block text-xs text-[var(--muted-foreground)]">
-              {t('Имя пользователя Telegram', 'Telegram username')}
+              {t('РРјСЏ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ Telegram', 'Telegram username')}
             </label>
             <input
               className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--background)] px-2 text-sm"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
-              placeholder={t('@ваш_username', '@your_username')}
+              placeholder={t('@РІР°С€_username', '@your_username')}
             />
           </div>
         </div>
 
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button onClick={() => void saveConfig()}>{t('Сохранить конфиг', 'Save config')}</Button>
+          <Button onClick={() => void saveConfig()}>{t('РЎРѕС…СЂР°РЅРёС‚СЊ РєРѕРЅС„РёРі', 'Save config')}</Button>
           <Button variant="outline" onClick={() => void beginVerification()}>
-            {t('Сгенерировать код верификации', 'Generate verification code')}
+            {t('РЎРіРµРЅРµСЂРёСЂРѕРІР°С‚СЊ РєРѕРґ РІРµСЂРёС„РёРєР°С†РёРё', 'Generate verification code')}
           </Button>
           <Button variant="outline" onClick={() => void pollOnce()}>
-            {t('Проверить сейчас', 'Poll now')}
+            {t('РџСЂРѕРІРµСЂРёС‚СЊ СЃРµР№С‡Р°СЃ', 'Poll now')}
           </Button>
-          <Button onClick={() => void startListener()}>{t('Запустить прием', 'Start listener')}</Button>
+          <Button onClick={() => void startListener()}>{t('Р—Р°РїСѓСЃС‚РёС‚СЊ РїСЂРёРµРј', 'Start listener')}</Button>
           <Button variant="danger" onClick={() => void stopListener()}>
-            {t('Остановить прием', 'Stop listener')}
+            {t('РћСЃС‚Р°РЅРѕРІРёС‚СЊ РїСЂРёРµРј', 'Stop listener')}
           </Button>
         </div>
 
@@ -336,37 +472,37 @@ export function SettingsPanel() {
 
       <Card>
         <h4 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-          {t('Текущий статус Telegram', 'Telegram runtime status')}
+          {t('РўРµРєСѓС‰РёР№ СЃС‚Р°С‚СѓСЃ Telegram', 'Telegram runtime status')}
         </h4>
 
         {status ? (
           <div className="space-y-2 text-sm">
             <div className="flex flex-wrap gap-2">
               <Badge>
-                {t('Настроено', 'Configured')}: {status.configured ? t('да', 'yes') : t('нет', 'no')}
+                {t('РќР°СЃС‚СЂРѕРµРЅРѕ', 'Configured')}: {status.configured ? t('РґР°', 'yes') : t('РЅРµС‚', 'no')}
               </Badge>
               <Badge>
-                {t('Верифицировано', 'Verified')}: {status.verified ? t('да', 'yes') : t('нет', 'no')}
+                {t('Р’РµСЂРёС„РёС†РёСЂРѕРІР°РЅРѕ', 'Verified')}: {status.verified ? t('РґР°', 'yes') : t('РЅРµС‚', 'no')}
               </Badge>
               <Badge>
-                {t('Запущено', 'Running')}: {status.running ? t('да', 'yes') : t('нет', 'no')}
+                {t('Р—Р°РїСѓС‰РµРЅРѕ', 'Running')}: {status.running ? t('РґР°', 'yes') : t('РЅРµС‚', 'no')}
               </Badge>
             </div>
             <p>
-              {t('Имя пользователя', 'Username')}: {status.username ?? '-'}
+              {t('РРјСЏ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ', 'Username')}: {status.username ?? '-'}
             </p>
             <p>Chat ID: {status.chat_id ?? '-'}</p>
             <p>
-              {t('Последний опрос', 'Last poll')}:{' '}
+              {t('РџРѕСЃР»РµРґРЅРёР№ РѕРїСЂРѕСЃ', 'Last poll')}:{' '}
               {status.last_poll_at ? new Date(status.last_poll_at).toLocaleString() : '-'}
             </p>
             <p>
-              {t('Последняя ошибка', 'Last error')}: {status.last_error ?? '-'}
+              {t('РџРѕСЃР»РµРґРЅСЏСЏ РѕС€РёР±РєР°', 'Last error')}: {status.last_error ?? '-'}
             </p>
           </div>
         ) : (
           <p className="text-sm text-[var(--muted-foreground)]">
-            {t('Статус пока не получен.', 'No status yet.')}
+            {t('РЎС‚Р°С‚СѓСЃ РїРѕРєР° РЅРµ РїРѕР»СѓС‡РµРЅ.', 'No status yet.')}
           </p>
         )}
       </Card>
@@ -374,13 +510,13 @@ export function SettingsPanel() {
       {verification ? (
         <Card>
           <h4 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-            {t('Одноразовый код верификации', 'One-time verification code')}
+            {t('РћРґРЅРѕСЂР°Р·РѕРІС‹Р№ РєРѕРґ РІРµСЂРёС„РёРєР°С†РёРё', 'One-time verification code')}
           </h4>
           <p className="rounded-md border border-[var(--border)] bg-[var(--muted)] px-3 py-2 font-mono text-sm">
             {verification.code}
           </p>
           <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-            {t('Действует до', 'Expires at')}: {new Date(verification.expires_at).toLocaleString()}
+            {t('Р”РµР№СЃС‚РІСѓРµС‚ РґРѕ', 'Expires at')}: {new Date(verification.expires_at).toLocaleString()}
           </p>
         </Card>
       ) : null}
@@ -388,21 +524,21 @@ export function SettingsPanel() {
       {pollReport ? (
         <Card>
           <h4 className="mb-2 text-sm font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
-            {t('Отчет последнего опроса', 'Last poll report')}
+            {t('РћС‚С‡РµС‚ РїРѕСЃР»РµРґРЅРµРіРѕ РѕРїСЂРѕСЃР°', 'Last poll report')}
           </h4>
           <div className="space-y-1 text-sm">
             <p>
-              {t('Получено обновлений', 'Fetched updates')}: {pollReport.fetched}
+              {t('РџРѕР»СѓС‡РµРЅРѕ РѕР±РЅРѕРІР»РµРЅРёР№', 'Fetched updates')}: {pollReport.fetched}
             </p>
             <p>
-              {t('Принято', 'Accepted')}: {pollReport.accepted}
+              {t('РџСЂРёРЅСЏС‚Рѕ', 'Accepted')}: {pollReport.accepted}
             </p>
             <p>
-              {t('Отклонено', 'Rejected')}: {pollReport.rejected}
+              {t('РћС‚РєР»РѕРЅРµРЅРѕ', 'Rejected')}: {pollReport.rejected}
             </p>
             <p>
-              {t('Подтверждено сейчас', 'Verified now')}:{' '}
-              {pollReport.verified_now ? t('да', 'yes') : t('нет', 'no')}
+              {t('РџРѕРґС‚РІРµСЂР¶РґРµРЅРѕ СЃРµР№С‡Р°СЃ', 'Verified now')}:{' '}
+              {pollReport.verified_now ? t('РґР°', 'yes') : t('РЅРµС‚', 'no')}
             </p>
           </div>
         </Card>
@@ -410,3 +546,6 @@ export function SettingsPanel() {
     </div>
   )
 }
+
+
+

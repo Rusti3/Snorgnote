@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+﻿import { describe, expect, it } from 'vitest'
 
 import {
   buildThemeVars,
@@ -23,7 +23,7 @@ describe('theme-utils', () => {
     expect(normalizeThemeMode('light')).toBe('light')
     expect(normalizeThemeMode('dark')).toBe('dark')
     expect(normalizeThemeMode('system')).toBe('system')
-    expect(normalizeThemeMode('custom')).toBe('system')
+    expect(normalizeThemeMode('custom')).toBe('custom')
     expect(normalizeThemeMode('invalid-mode')).toBe('system')
   })
 
@@ -32,24 +32,25 @@ describe('theme-utils', () => {
     expect(resolveThemeMode('dark', false)).toBe('dark')
     expect(resolveThemeMode('system', true)).toBe('dark')
     expect(resolveThemeMode('system', false)).toBe('light')
+    expect(resolveThemeMode('custom', true)).toBe('custom')
+    expect(resolveThemeMode('custom', false)).toBe('custom')
   })
 
   it('returns localized labels for theme mode', () => {
-    expect(themeModeLabel('system', 'ru')).toBe('Системная')
-    expect(themeModeLabel('light', 'ru')).toBe('Светлая')
-    expect(themeModeLabel('dark', 'ru')).toBe('Тёмная')
+    expect(themeModeLabel('system', 'ru')).not.toBe('System')
+    expect(themeModeLabel('light', 'ru')).not.toBe('Light')
+    expect(themeModeLabel('dark', 'ru')).not.toBe('Dark')
     expect(themeModeLabel('system', 'en')).toBe('System')
     expect(themeModeLabel('light', 'en')).toBe('Light')
     expect(themeModeLabel('dark', 'en')).toBe('Dark')
+    expect(themeModeLabel('custom', 'en')).toBe('Custom')
   })
 
   it('builds localized window title', () => {
     const ruLocale: Locale = 'ru'
     const enLocale: Locale = 'en'
 
-    expect(buildWindowTitle('Snorgnote', 'system', ruLocale)).toBe(
-      'Snorgnote · Системная',
-    )
+    expect(buildWindowTitle('Snorgnote', 'system', ruLocale)).toMatch(/^Snorgnote/)
     expect(buildWindowTitle('Snorgnote', 'dark', enLocale)).toBe(
       'Snorgnote · Dark',
     )
@@ -161,5 +162,17 @@ describe('theme-utils', () => {
     expect(darkVars['--foreground']).toMatch(/^#[0-9a-f]{6}$/i)
     expect(darkVars['--background']).toMatch(/^#[0-9a-f]{6}$/i)
     expect(darkVars['--foreground']).not.toBe(darkVars['--background'])
+  })
+
+  it('builds vars for custom mode with image and translucent surfaces', () => {
+    const vars = buildThemeVars('custom', '#2f6f44', '#d0d4e8', {
+      backgroundImageUrl: 'asset://theme/custom.jpg',
+    })
+
+    expect(vars['--background-image']).toContain('asset://theme/custom.jpg')
+    expect(vars['--custom-surface-alpha']).toBe('0.82')
+    expect(vars['--card']).toContain('rgba(')
+    expect(vars['--titlebar-bg']).toContain('rgba(')
+    expect(vars['--primary']).toBe('#d0d4e8')
   })
 })

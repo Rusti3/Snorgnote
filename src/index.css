@@ -16,6 +16,11 @@
   --surface-gradient: linear-gradient(135deg, #e7efd8 0%, #f4e8cb 100%);
   --bg-radial-1: rgba(132, 179, 112, 0.24);
   --bg-radial-2: rgba(200, 151, 82, 0.2);
+  --background-image: none;
+  --bg-overlay: rgba(0, 0, 0, 0);
+  --custom-surface-alpha: 0.82;
+  --custom-blur: 8px;
+  --field-bg: var(--background);
 }
 
 [data-theme='dark'] {
@@ -33,6 +38,7 @@
   --surface-gradient: linear-gradient(135deg, #1f2b23 0%, #1f242e 100%);
   --bg-radial-1: rgba(73, 140, 93, 0.25);
   --bg-radial-2: rgba(91, 109, 162, 0.2);
+  --field-bg: var(--background);
 }
 
 * {
@@ -51,9 +57,15 @@ body,
 body {
   font-family: 'Manrope', sans-serif;
   background:
+    linear-gradient(0deg, var(--bg-overlay), var(--bg-overlay)),
+    var(--background-image),
     radial-gradient(circle at 15% 10%, var(--bg-radial-1), transparent 38%),
     radial-gradient(circle at 85% 90%, var(--bg-radial-2), transparent 35%),
     var(--background);
+  background-position: center, center, 0 0, 0 0, 0 0;
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+  background-size: cover, cover, auto, auto, auto;
+  background-attachment: fixed, fixed, scroll, scroll, scroll;
   color: var(--foreground);
 }
 
@@ -78,4 +90,23 @@ body {
 
 .font-display {
   font-family: 'Sora', sans-serif;
+}
+
+[data-theme='custom'] .sn-card-surface {
+  background: var(--card);
+  backdrop-filter: blur(var(--custom-blur));
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.34);
+}
+
+[data-theme='custom'] .sn-button {
+  backdrop-filter: blur(calc(var(--custom-blur) * 0.65));
+}
+
+[data-theme='custom'] input:not([type='checkbox']):not([type='radio']):not([type='file']),
+[data-theme='custom'] textarea,
+[data-theme='custom'] select {
+  background: var(--field-bg);
+  backdrop-filter: blur(var(--custom-blur));
+  border-color: var(--border);
+  color: var(--foreground);
 }

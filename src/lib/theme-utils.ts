@@ -1,7 +1,7 @@
-import type { Locale } from './locale'
+﻿import type { Locale } from './locale'
 
-export type ThemeMode = 'system' | 'light' | 'dark'
-export type ResolvedTheme = 'light' | 'dark'
+export type ThemeMode = 'system' | 'light' | 'dark' | 'custom'
+export type ResolvedTheme = 'light' | 'dark' | 'custom'
 
 export const PRIMARY_COLOR_PALETTE = [
   '#2f6f44',
@@ -37,7 +37,7 @@ export const DEFAULT_DARK_PRIMARY = PRIMARY_COLOR_PALETTE[0]
 export const DEFAULT_DARK_SECONDARY = SECONDARY_COLOR_PALETTE[0]
 
 export function normalizeThemeMode(raw: string | null | undefined): ThemeMode {
-  if (raw === 'light' || raw === 'dark' || raw === 'system') {
+  if (raw === 'light' || raw === 'dark' || raw === 'system' || raw === 'custom') {
     return raw
   }
   return 'system'
@@ -49,6 +49,7 @@ export function resolveThemeMode(
 ): ResolvedTheme {
   if (mode === 'light') return 'light'
   if (mode === 'dark') return 'dark'
+  if (mode === 'custom') return 'custom'
   return prefersDark ? 'dark' : 'light'
 }
 
@@ -56,10 +57,12 @@ export function themeModeLabel(mode: ThemeMode, locale: Locale): string {
   if (locale === 'ru') {
     if (mode === 'light') return 'Светлая'
     if (mode === 'dark') return 'Тёмная'
+    if (mode === 'custom') return 'Кастомная'
     return 'Системная'
   }
   if (mode === 'light') return 'Light'
   if (mode === 'dark') return 'Dark'
+  if (mode === 'custom') return 'Custom'
   return 'System'
 }
 
@@ -86,17 +89,28 @@ export function buildThemeVars(
   mode: ResolvedTheme,
   primary: string,
   secondary: string,
+  options?: {
+    backgroundImageUrl?: string | null
+  },
 ): Record<string, string> {
   const safePrimary = isHexColor(primary)
     ? primary
-    : mode === 'dark'
+    : mode === 'dark' || mode === 'custom'
       ? DEFAULT_DARK_PRIMARY
       : DEFAULT_LIGHT_PRIMARY
   const safeSecondary = isHexColor(secondary)
     ? secondary
-    : mode === 'dark'
+    : mode === 'dark' || mode === 'custom'
       ? DEFAULT_DARK_SECONDARY
       : DEFAULT_LIGHT_SECONDARY
+
+  if (mode === 'custom') {
+    return buildCustomThemeVars(
+      safePrimary,
+      safeSecondary,
+      options?.backgroundImageUrl ?? null,
+    )
+  }
 
   if (mode === 'dark') {
     return buildDarkThemeVars(safePrimary, safeSecondary)
@@ -129,6 +143,11 @@ function buildLightThemeVars(
     '--surface-gradient': `linear-gradient(135deg, ${rgba(safePrimary, 0.24)} 0%, ${rgba(tint(safePrimary, 0.68), 0.24)} 100%)`,
     '--bg-radial-1': rgba(safePrimary, 0.24),
     '--bg-radial-2': rgba(shade(safePrimary, 0.18), 0.2),
+    '--background-image': 'none',
+    '--bg-overlay': 'rgba(0, 0, 0, 0)',
+    '--custom-surface-alpha': '0.82',
+    '--custom-blur': '8px',
+    '--field-bg': background,
   }
 }
 
@@ -157,6 +176,43 @@ function buildDarkThemeVars(
     '--surface-gradient': `linear-gradient(135deg, ${rgba(tint(safePrimary, 0.22), 0.22)} 0%, ${rgba(shade(safePrimary, 0.26), 0.28)} 100%)`,
     '--bg-radial-1': rgba(tint(safePrimary, 0.26), 0.24),
     '--bg-radial-2': rgba(shade(safePrimary, 0.08), 0.22),
+    '--background-image': 'none',
+    '--bg-overlay': 'rgba(0, 0, 0, 0)',
+    '--custom-surface-alpha': '0.82',
+    '--custom-blur': '8px',
+    '--field-bg': background,
+  }
+}
+
+function buildCustomThemeVars(
+  safePrimary: string,
+  safeSecondary: string,
+  backgroundImageUrl: string | null,
+): Record<string, string> {
+  const image = backgroundImageUrl?.trim()
+  const imageLayer = image
+    ? `url("${image.replace(/"/g, '%22')}")`
+    : 'none'
+  const surfaceAlpha = 0.82
+
+  return {
+    '--background': shade(safePrimary, 0.8),
+    '--foreground': '#f4f7ff',
+    '--card': `rgba(15, 20, 26, ${surfaceAlpha})`,
+    '--muted': 'rgba(15, 20, 26, 0.68)',
+    '--muted-foreground': 'rgba(228, 235, 248, 0.84)',
+    '--border': 'rgba(244, 247, 255, 0.28)',
+    '--titlebar-bg': 'rgba(15, 20, 26, 0.84)',
+    '--primary': safeSecondary,
+    '--primary-foreground': readableOnColor(safeSecondary),
+    '--surface-gradient': `linear-gradient(135deg, ${rgba(safePrimary, 0.2)} 0%, ${rgba(shade(safePrimary, 0.22), 0.22)} 100%)`,
+    '--bg-radial-1': rgba(tint(safePrimary, 0.3), 0.12),
+    '--bg-radial-2': rgba(shade(safePrimary, 0.1), 0.2),
+    '--background-image': imageLayer,
+    '--bg-overlay': 'rgba(10, 14, 20, 0.36)',
+    '--custom-surface-alpha': surfaceAlpha.toFixed(2),
+    '--custom-blur': '8px',
+    '--field-bg': 'rgba(13, 18, 24, 0.74)',
   }
 }
 

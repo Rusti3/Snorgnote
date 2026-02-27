@@ -510,6 +510,24 @@ pub fn habits_today(
 }
 
 #[tauri::command]
+pub fn theme_save_background_image(
+    state: State<'_, AppState>,
+    file_name: String,
+    bytes: Vec<u8>,
+) -> Result<String, String> {
+    state
+        .theme_save_background_image(file_name, bytes)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn theme_clear_background_image(state: State<'_, AppState>) -> Result<(), String> {
+    state
+        .theme_clear_background_image()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn telegram_set_config(
     state: State<'_, AppState>,
     bot_token: String,

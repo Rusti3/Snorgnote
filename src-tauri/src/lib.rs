@@ -146,6 +146,8 @@ pub fn run() {
             commands::habits_mark_done,
             commands::habits_unmark_done,
             commands::habits_today,
+            commands::theme_save_background_image,
+            commands::theme_clear_background_image,
             commands::telegram_set_config,
             commands::telegram_begin_verification,
             commands::telegram_poll_once,

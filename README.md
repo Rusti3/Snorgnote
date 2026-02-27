@@ -12,7 +12,7 @@
 
 ## Статус
 
-Текущая версия: `v0.1.28`.
+Текущая версия: `v0.1.29`.
 
 Реализовано:
 
@@ -304,4 +304,24 @@ npm run dev
 - `flashcards-panel.test.tsx`;
 - `flashcards-review-window.test.tsx`.
 - Расширены Tauri permissions для создания и фокусировки дополнительного окна (`core:webview:allow-create-webview-window`, `core:window:allow-create`, `core:window:allow-get-all-windows`, `core:window:allow-show`, `core:window:allow-set-focus`) и добавлен label окна `flashcards-review` в capabilities.
+
+### v0.1.29
+
+- Добавлена полноценная тема `Кастомная` в настройках (рядом с `System/Light/Dark`) с выбором:
+- основного цвета (фон и titlebar);
+- дополнительного цвета (кнопки и акценты).
+- Добавлена загрузка фонового изображения для кастомной темы (`PNG/JPG/JPEG/WEBP`, до 10MB) и кнопка удаления фона.
+- Реализовано хранение фонового изображения в Tauri backend:
+- новые команды `theme_save_background_image` и `theme_clear_background_image`;
+- сохранение в app data (`themes/custom-background.<ext>`) с заменой предыдущего файла.
+- Обновлен ThemeProvider:
+- хранение выбранного фона и акцента в `localStorage`;
+- конвертация локального пути в `asset://` через `convertFileSrc` для отображения в UI.
+- Обновлен визуальный слой для кастомной темы:
+- фон body теперь поддерживает изображение + overlay;
+- карточки и кнопки получили прозрачность/blur для читаемости поверх фото;
+- инпуты/селекты в кастомной теме используют отдельный полупрозрачный фон.
+- Добавлены и обновлены тесты:
+- frontend: `theme-utils.test.ts`, `settings-panel.test.tsx`;
+- backend: `core::theme::tests` (save/replace/clear/unsupported extension).
 

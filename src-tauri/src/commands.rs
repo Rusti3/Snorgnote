@@ -402,6 +402,114 @@ pub fn projects_task_delete(state: State<'_, AppState>, task_id: String) -> Resu
 }
 
 #[tauri::command]
+pub fn habits_list(
+    state: State<'_, AppState>,
+    include_archived: Option<bool>,
+    project_id: Option<String>,
+) -> Result<Vec<crate::core::HabitView>, String> {
+    state
+        .habits_list(include_archived, project_id)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn habits_create(
+    state: State<'_, AppState>,
+    title: String,
+    description: Option<String>,
+    frequency_type: Option<String>,
+    weekdays: Option<Vec<u8>>,
+    interval_days: Option<u32>,
+    project_id: Option<String>,
+) -> Result<crate::core::HabitView, String> {
+    state
+        .habits_create(
+            title,
+            description,
+            frequency_type,
+            weekdays,
+            interval_days,
+            project_id,
+        )
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn habits_update(
+    state: State<'_, AppState>,
+    habit_id: String,
+    title: Option<String>,
+    description: Option<String>,
+    frequency_type: Option<String>,
+    weekdays: Option<Vec<u8>>,
+    interval_days: Option<u32>,
+    project_id: Option<String>,
+) -> Result<crate::core::HabitView, String> {
+    state
+        .habits_update(
+            habit_id,
+            title,
+            description,
+            frequency_type,
+            weekdays,
+            interval_days,
+            project_id,
+        )
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn habits_archive(
+    state: State<'_, AppState>,
+    habit_id: String,
+    archived: bool,
+) -> Result<crate::core::HabitView, String> {
+    state
+        .habits_archive(habit_id, archived)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn habits_delete(state: State<'_, AppState>, habit_id: String) -> Result<(), String> {
+    state
+        .habits_delete(habit_id)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn habits_mark_done(
+    state: State<'_, AppState>,
+    habit_id: String,
+    date: Option<String>,
+) -> Result<crate::core::HabitLogView, String> {
+    state
+        .habits_mark_done(habit_id, date)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn habits_unmark_done(
+    state: State<'_, AppState>,
+    habit_id: String,
+    date: Option<String>,
+) -> Result<(), String> {
+    state
+        .habits_unmark_done(habit_id, date)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn habits_today(
+    state: State<'_, AppState>,
+    date: Option<String>,
+    include_archived: Option<bool>,
+) -> Result<crate::core::HabitTodayPage, String> {
+    state
+        .habits_today(date, include_archived)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn telegram_set_config(
     state: State<'_, AppState>,
     bot_token: String,

@@ -244,6 +244,54 @@ pub struct ProjectAssignNotesReport {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct HabitFrequency {
+    #[serde(rename = "type")]
+    pub frequency_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub weekdays: Option<Vec<u8>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interval_days: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct HabitView {
+    pub id: String,
+    pub slug: String,
+    pub title: String,
+    pub description: String,
+    pub frequency: HabitFrequency,
+    pub project_id: Option<String>,
+    pub archived: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct HabitLogView {
+    pub id: String,
+    pub habit_id: String,
+    pub log_date: String,
+    pub done: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct HabitTodayItem {
+    pub habit: HabitView,
+    pub is_due_today: bool,
+    pub completed_today: bool,
+    pub current_streak: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct HabitTodayPage {
+    pub date: String,
+    pub total: i64,
+    pub items: Vec<HabitTodayItem>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct TelegramStatus {
     pub configured: bool,
     pub verified: bool,

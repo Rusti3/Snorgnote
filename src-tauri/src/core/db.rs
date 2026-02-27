@@ -28,6 +28,7 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
     conn.execute_batch(include_str!("../../migrations/004_focus_pause_resume.sql"))?;
     conn.execute_batch(include_str!("../../migrations/005_flashcards.sql"))?;
     conn.execute_batch(include_str!("../../migrations/006_projects_perf.sql"))?;
+    conn.execute_batch(include_str!("../../migrations/007_habits.sql"))?;
     Ok(())
 }
 

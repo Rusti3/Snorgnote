@@ -222,6 +222,48 @@ export interface ProjectAssignNotesReport {
   skipped: number
 }
 
+export type HabitFrequencyType = 'daily' | 'weekdays' | 'custom_weekdays' | 'every_n_days'
+
+export interface HabitFrequency {
+  type: HabitFrequencyType
+  weekdays?: number[]
+  interval_days?: number
+}
+
+export interface HabitView {
+  id: string
+  slug: string
+  title: string
+  description: string
+  frequency: HabitFrequency
+  project_id?: string
+  archived: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface HabitLogView {
+  id: string
+  habit_id: string
+  log_date: string
+  done: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface HabitTodayItem {
+  habit: HabitView
+  is_due_today: boolean
+  completed_today: boolean
+  current_streak: number
+}
+
+export interface HabitTodayPage {
+  date: string
+  total: number
+  items: HabitTodayItem[]
+}
+
 export interface TelegramStatus {
   configured: boolean
   verified: boolean

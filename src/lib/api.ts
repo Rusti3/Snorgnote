@@ -14,6 +14,12 @@ import type {
   FocusHistoryPage,
   FocusSessionView,
   FocusStats,
+  HabitFrequency,
+  HabitFrequencyType,
+  HabitLogView,
+  HabitTodayItem,
+  HabitTodayPage,
+  HabitView,
   InboxItemView,
   JobRunReport,
   NoteDocument,
@@ -102,6 +108,114 @@ function normalizeProjectTaskEnergy(energy: string | undefined): 'low' | 'medium
     return energy
   }
   return 'medium'
+}
+
+function normalizeHabitFrequencyType(
+  value: string | undefined,
+): HabitFrequencyType {
+  if (
+    value === 'weekdays'
+    || value === 'custom_weekdays'
+    || value === 'every_n_days'
+  ) {
+    return value
+  }
+  return 'daily'
+}
+
+function normalizeHabitWeekdays(weekdays: number[] | undefined): number[] {
+  const normalized = [...new Set((weekdays ?? [])
+    .map((day) => Math.floor(day))
+    .filter((day) => Number.isFinite(day) && day >= 1 && day <= 7))]
+  normalized.sort((left, right) => left - right)
+  return normalized
+}
+
+function normalizeHabitIntervalDays(intervalDays: number | undefined): number {
+  if (typeof intervalDays !== 'number' || !Number.isFinite(intervalDays)) {
+    return 2
+  }
+  return Math.max(2, Math.floor(intervalDays))
+}
+
+function normalizeLogDate(input: string | undefined): string {
+  if (!input) return today()
+  const raw = input.trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw
+  }
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`Неверная дата: ${input}`)
+  }
+  return parsed.toISOString().slice(0, 10)
+}
+
+function buildMockHabitFrequency(input: {
+  frequencyType?: string
+  weekdays?: number[]
+  intervalDays?: number
+}): HabitFrequency {
+  const type = normalizeHabitFrequencyType(input.frequencyType)
+  if (type === 'custom_weekdays') {
+    const weekdays = normalizeHabitWeekdays(input.weekdays)
+    if (weekdays.length === 0) {
+      throw new Error('Для custom_weekdays нужно указать хотя бы один день недели')
+    }
+    return { type, weekdays }
+  }
+  if (type === 'every_n_days') {
+    return { type, interval_days: normalizeHabitIntervalDays(input.intervalDays) }
+  }
+  return { type }
+}
+
+function isHabitDueOnDate(habit: HabitView, date: string): boolean {
+  const dateObj = new Date(`${date}T00:00:00Z`)
+  if (Number.isNaN(dateObj.getTime())) return false
+  const weekday = dateObj.getUTCDay() === 0 ? 7 : dateObj.getUTCDay()
+  if (habit.frequency.type === 'daily') {
+    return true
+  }
+  if (habit.frequency.type === 'weekdays') {
+    return weekday >= 1 && weekday <= 5
+  }
+  if (habit.frequency.type === 'custom_weekdays') {
+    return (habit.frequency.weekdays ?? []).includes(weekday)
+  }
+  const interval = normalizeHabitIntervalDays(habit.frequency.interval_days)
+  const anchorDate = habit.created_at.slice(0, 10)
+  const anchorObj = new Date(`${anchorDate}T00:00:00Z`)
+  if (Number.isNaN(anchorObj.getTime())) return false
+  const delta = Math.floor((dateObj.getTime() - anchorObj.getTime()) / 86_400_000)
+  return delta >= 0 && delta % interval === 0
+}
+
+function resolveMockProjectId(projectRef: string | undefined | null): string | undefined {
+  const normalized = projectRef?.trim()
+  if (!normalized) return undefined
+  const project = mockState.projects.find((candidate) =>
+    candidate.id === normalized || candidate.slug === normalized,
+  )
+  if (!project) {
+    throw new Error(`Проект не найден: ${normalized}`)
+  }
+  return project.id
+}
+
+function buildHabitSlug(title: string): string {
+  const base = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-+|-+$)/g, '')
+    || 'habit'
+  let slug = base
+  let seq = 2
+  while (mockState.habits.some((habit) => habit.slug === slug)) {
+    slug = `${base}-${seq}`
+    seq += 1
+  }
+  return slug
 }
 
 function extractPreview(bodyMd: string): string {
@@ -216,6 +330,8 @@ const mockState = {
     },
   ] as ProjectState[],
   projectTasks: [] as Array<ProjectTaskView & { project_id: string; created_at: string }>,
+  habits: [] as HabitView[],
+  habitLogs: [] as HabitLogView[],
   focusActive: null as FocusSessionView | null,
   focusHistory: [] as FocusSessionView[],
   flashcards: [] as FlashcardView[],
@@ -1283,6 +1399,269 @@ export const api = {
       throw new Error(`Задача не найдена: ${taskId}`)
     }
     mockState.projectTasks.splice(idx, 1)
+  },
+
+  async habitsList(input?: {
+    includeArchived?: boolean
+    projectId?: string
+  }): Promise<HabitView[]> {
+    const includeArchived = Boolean(input?.includeArchived)
+    const projectId = input?.projectId?.trim()
+
+    if (hasTauriRuntime()) {
+      return tauriInvoke('habits_list', {
+        includeArchived,
+        projectId: projectId || undefined,
+      })
+    }
+
+    const resolvedProjectId = projectId ? resolveMockProjectId(projectId) : undefined
+    return mockState.habits
+      .filter((habit) => includeArchived || !habit.archived)
+      .filter((habit) => !resolvedProjectId || habit.project_id === resolvedProjectId)
+      .sort((left, right) => right.updated_at.localeCompare(left.updated_at))
+  },
+
+  async habitsCreate(input: {
+    title: string
+    description?: string
+    frequencyType?: HabitFrequencyType
+    weekdays?: number[]
+    intervalDays?: number
+    projectId?: string | null
+  }): Promise<HabitView> {
+    const title = input.title.trim()
+    if (!title) {
+      throw new Error('Название привычки не может быть пустым')
+    }
+    const frequency = buildMockHabitFrequency({
+      frequencyType: input.frequencyType,
+      weekdays: input.weekdays,
+      intervalDays: input.intervalDays,
+    })
+    const projectId = resolveMockProjectId(input.projectId)
+
+    if (hasTauriRuntime()) {
+      return tauriInvoke('habits_create', {
+        title,
+        description: input.description?.trim() || undefined,
+        frequencyType: frequency.type,
+        weekdays: frequency.weekdays,
+        intervalDays: frequency.interval_days,
+        projectId: projectId || undefined,
+      })
+    }
+
+    const timestamp = now()
+    const habit: HabitView = {
+      id: crypto.randomUUID(),
+      slug: buildHabitSlug(title),
+      title,
+      description: input.description?.trim() || '',
+      frequency,
+      project_id: projectId,
+      archived: false,
+      created_at: timestamp,
+      updated_at: timestamp,
+    }
+    mockState.habits.unshift(habit)
+    return habit
+  },
+
+  async habitsUpdate(
+    habitId: string,
+    input: {
+      title?: string
+      description?: string
+      frequencyType?: HabitFrequencyType
+      weekdays?: number[]
+      intervalDays?: number
+      projectId?: string | null
+    },
+  ): Promise<HabitView> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('habits_update', {
+        habitId,
+        title: input.title,
+        description: input.description,
+        frequencyType: input.frequencyType,
+        weekdays: input.weekdays,
+        intervalDays: input.intervalDays,
+        projectId: Object.prototype.hasOwnProperty.call(input, 'projectId')
+          ? (input.projectId ?? '')
+          : undefined,
+      })
+    }
+
+    const idx = mockState.habits.findIndex((habit) => habit.id === habitId)
+    if (idx < 0) {
+      throw new Error(`Привычка не найдена: ${habitId}`)
+    }
+
+    const current = mockState.habits[idx]
+    const hasProjectInput = Object.prototype.hasOwnProperty.call(input, 'projectId')
+    const nextProjectId = hasProjectInput
+      ? resolveMockProjectId(input.projectId)
+      : current.project_id
+    const nextTitle = input.title !== undefined ? input.title.trim() : current.title
+    if (!nextTitle) {
+      throw new Error('Название привычки не может быть пустым')
+    }
+    const nextFrequency = buildMockHabitFrequency({
+      frequencyType: input.frequencyType ?? current.frequency.type,
+      weekdays: input.weekdays ?? current.frequency.weekdays,
+      intervalDays: input.intervalDays ?? current.frequency.interval_days,
+    })
+
+    const updated: HabitView = {
+      ...current,
+      title: nextTitle,
+      description: input.description !== undefined ? input.description.trim() : current.description,
+      frequency: nextFrequency,
+      project_id: nextProjectId,
+      updated_at: now(),
+    }
+    mockState.habits[idx] = updated
+    return updated
+  },
+
+  async habitsArchive(habitId: string, archived: boolean): Promise<HabitView> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('habits_archive', { habitId, archived })
+    }
+
+    const idx = mockState.habits.findIndex((habit) => habit.id === habitId)
+    if (idx < 0) {
+      throw new Error(`Привычка не найдена: ${habitId}`)
+    }
+    const updated: HabitView = {
+      ...mockState.habits[idx],
+      archived,
+      updated_at: now(),
+    }
+    mockState.habits[idx] = updated
+    return updated
+  },
+
+  async habitsDelete(habitId: string): Promise<void> {
+    if (hasTauriRuntime()) {
+      return tauriInvoke('habits_delete', { habitId })
+    }
+
+    const idx = mockState.habits.findIndex((habit) => habit.id === habitId)
+    if (idx < 0) {
+      throw new Error(`Привычка не найдена: ${habitId}`)
+    }
+    mockState.habits.splice(idx, 1)
+    mockState.habitLogs = mockState.habitLogs.filter((log) => log.habit_id !== habitId)
+  },
+
+  async habitsMarkDone(habitId: string, date?: string): Promise<HabitLogView> {
+    const logDate = normalizeLogDate(date)
+
+    if (hasTauriRuntime()) {
+      return tauriInvoke('habits_mark_done', {
+        habitId,
+        date: date?.trim() || undefined,
+      })
+    }
+
+    const habit = mockState.habits.find((item) => item.id === habitId)
+    if (!habit) {
+      throw new Error(`Привычка не найдена: ${habitId}`)
+    }
+    const existingIdx = mockState.habitLogs.findIndex((log) =>
+      log.habit_id === habitId && log.log_date === logDate,
+    )
+    if (existingIdx >= 0) {
+      const existing = mockState.habitLogs[existingIdx]
+      const updated: HabitLogView = {
+        ...existing,
+        done: true,
+        updated_at: now(),
+      }
+      mockState.habitLogs[existingIdx] = updated
+      return updated
+    }
+    const timestamp = now()
+    const log: HabitLogView = {
+      id: crypto.randomUUID(),
+      habit_id: habitId,
+      log_date: logDate,
+      done: true,
+      created_at: timestamp,
+      updated_at: timestamp,
+    }
+    mockState.habitLogs.unshift(log)
+    return log
+  },
+
+  async habitsUnmarkDone(habitId: string, date?: string): Promise<void> {
+    const logDate = normalizeLogDate(date)
+
+    if (hasTauriRuntime()) {
+      return tauriInvoke('habits_unmark_done', {
+        habitId,
+        date: date?.trim() || undefined,
+      })
+    }
+
+    const exists = mockState.habits.some((habit) => habit.id === habitId)
+    if (!exists) {
+      throw new Error(`Привычка не найдена: ${habitId}`)
+    }
+    mockState.habitLogs = mockState.habitLogs.filter((log) =>
+      !(log.habit_id === habitId && log.log_date === logDate),
+    )
+  },
+
+  async habitsToday(input?: {
+    date?: string
+    includeArchived?: boolean
+  }): Promise<HabitTodayPage> {
+    const date = normalizeLogDate(input?.date)
+    const includeArchived = Boolean(input?.includeArchived)
+
+    if (hasTauriRuntime()) {
+      return tauriInvoke('habits_today', {
+        date,
+        includeArchived,
+      })
+    }
+
+    const habits = await this.habitsList({ includeArchived })
+    const items: HabitTodayItem[] = habits.map((habit) => {
+      const completedToday = mockState.habitLogs.some((log) =>
+        log.habit_id === habit.id && log.log_date === date && log.done,
+      )
+
+      let streak = 0
+      const cursor = new Date(`${date}T00:00:00Z`)
+      for (let i = 0; i < 3650; i += 1) {
+        const day = cursor.toISOString().slice(0, 10)
+        if (isHabitDueOnDate(habit, day)) {
+          const isDone = mockState.habitLogs.some((log) =>
+            log.habit_id === habit.id && log.log_date === day && log.done,
+          )
+          if (!isDone) break
+          streak += 1
+        }
+        cursor.setUTCDate(cursor.getUTCDate() - 1)
+      }
+
+      return {
+        habit,
+        is_due_today: isHabitDueOnDate(habit, date),
+        completed_today: completedToday,
+        current_streak: streak,
+      }
+    })
+
+    return {
+      date,
+      total: items.length,
+      items,
+    }
   },
 
   async telegramSetConfig(botToken: string, username: string): Promise<TelegramStatus> {

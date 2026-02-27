@@ -12,7 +12,7 @@
 
 ## Статус
 
-Текущая версия: `v0.1.26`.
+Текущая версия: `v0.1.27`.
 
 Реализовано:
 
@@ -272,4 +272,18 @@ npm run dev
 - Обновлены тесты:
 - frontend: `projects-panel.test.tsx` (optimistic delete + load more), `api-projects.test.ts` (пагинация и `limit=0`);
 - backend: `core::projects::tests::projects_list_details_supports_pagination` (доп. проверка `limit=0`).
+
+### v0.1.27
+
+- Добавлена новая вкладка `Habits` (Привычки) с полным циклом управления: создание, редактирование, архивирование, восстановление и удаление.
+- Добавлены частоты привычек:
+- `daily`;
+- `weekdays`;
+- `custom_weekdays` (с выбором дней недели);
+- `every_n_days` (интервал N дней).
+- Реализован блок `Today`:
+- определение `due` на текущую дату;
+- отметка/снятие выполнения за день;
+- расчет `streak` по завершенным обязательным дням.
+- Добавлены backend-команды и типы API для привычек (`habits_list/create/update/archive/delete/mark_done/unmark_done/today`), новая миграция `007_habits.sql` и тесты на frontend/backend.
 

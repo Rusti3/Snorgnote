@@ -2,6 +2,7 @@ pub mod db;
 pub mod deeplink;
 pub mod flashcards;
 pub mod focus;
+pub mod habits;
 pub mod jobs;
 pub mod planner;
 pub mod projects;

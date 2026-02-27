@@ -1,4 +1,4 @@
-﻿import { BookOpen, Brain, CalendarDays, Clock4, FolderKanban, Inbox, ScrollText, Settings } from 'lucide-react'
+import { BookOpen, Brain, CalendarDays, Clock4, FolderKanban, Inbox, ListChecks, ScrollText, Settings } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import { Badge } from './components/ui/badge'
@@ -6,6 +6,7 @@ import { Card } from './components/ui/card'
 import { WindowTitlebar } from './components/window-titlebar'
 import { FlashcardsPanel } from './features/flashcards-panel'
 import { FocusPanel } from './features/focus-panel'
+import { HabitsPanel } from './features/habits-panel'
 import { InboxPanel } from './features/inbox-panel'
 import { NotesPanel } from './features/notes-panel'
 import { PlanningPanel } from './features/planning-panel'
@@ -15,7 +16,7 @@ import { StatsPanel } from './features/stats-panel'
 import { api } from './lib/api'
 import { useLocale } from './lib/locale'
 
-type TabId = 'inbox' | 'notes' | 'flashcards' | 'planning' | 'projects' | 'focus' | 'stats' | 'settings'
+type TabId = 'inbox' | 'notes' | 'flashcards' | 'planning' | 'habits' | 'projects' | 'focus' | 'stats' | 'settings'
 
 export default function App() {
   const { t } = useLocale()
@@ -27,6 +28,7 @@ export default function App() {
       { id: 'notes', label: t('Заметки', 'Notes'), icon: ScrollText },
       { id: 'flashcards', label: t('Карточки', 'Flashcards'), icon: BookOpen },
       { id: 'planning', label: t('День/Неделя', 'Daily/Weekly'), icon: CalendarDays },
+      { id: 'habits', label: t('Привычки', 'Habits'), icon: ListChecks },
       { id: 'projects', label: t('Проекты', 'Projects'), icon: FolderKanban },
       { id: 'focus', label: t('Фокус', 'Focus'), icon: Clock4 },
       { id: 'stats', label: t('Статистика', 'Stats'), icon: Brain },
@@ -92,8 +94,8 @@ export default function App() {
             <h2 className="font-display text-2xl font-semibold">{title}</h2>
             <p className="text-sm text-[var(--muted-foreground)]">
               {t(
-                'v0.1.25: в проектах добавлены поиск/фильтры по заметкам и задачам, а backend логика проектов вынесена в отдельный модуль.',
-                'v0.1.25: projects now include note/task search and filters, and project backend logic was extracted into a dedicated module.',
+                'v0.1.27: добавлена вкладка привычек с частотой, отметками выполнения и streak.',
+                'v0.1.27: habits tab added with frequency, completion tracking and streaks.',
               )}
             </p>
           </Card>
@@ -102,6 +104,7 @@ export default function App() {
           {tab === 'notes' ? <NotesPanel /> : null}
           {tab === 'flashcards' ? <FlashcardsPanel /> : null}
           {tab === 'planning' ? <PlanningPanel /> : null}
+          {tab === 'habits' ? <HabitsPanel /> : null}
           {tab === 'projects' ? <ProjectsPanel /> : null}
           {tab === 'focus' ? <FocusPanel /> : null}
           {tab === 'stats' ? <StatsPanel /> : null}
